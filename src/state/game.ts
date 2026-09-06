@@ -1,3 +1,29 @@
 import { atom } from 'jotai';
-export type GlobalView={aliveCount:bigint;currentMealSeconds:bigint;isSettled:boolean;currentPhase:string};
-export const globalViewAtom=atom<GlobalView|null>(null);
+
+export type ProtocolView = {
+  aliveCount: bigint;
+  currentMealSeconds: bigint;
+  isSettled: boolean;
+  currentPhase: string;
+  totalMinted: bigint;
+  gameStart: bigint;
+  startingPopulation: bigint;
+  totalNormalFeeds: bigint;
+  completedBars: bigint;
+  startBackstop: bigint;
+  synced: boolean;
+};
+
+export const protocolAtom = atom<ProtocolView>({
+  aliveCount: 0n,
+  currentMealSeconds: 86400n,
+  isSettled: false,
+  currentPhase: 'PRE_GAME',
+  totalMinted: 0n,
+  gameStart: 0n,
+  startingPopulation: 0n,
+  totalNormalFeeds: 0n,
+  completedBars: 0n,
+  startBackstop: 0n,
+  synced: false,
+});

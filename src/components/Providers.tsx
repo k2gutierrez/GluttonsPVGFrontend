@@ -7,4 +7,19 @@ import { Provider as JotaiProvider } from 'jotai';
 import { useState } from 'react';
 import { Toaster } from 'sonner';
 import { wagmiConfig } from '@/lib/web3';
-export default function Providers({children}:{children:React.ReactNode}){const [q]=useState(()=>new QueryClient());return <WagmiProvider config={wagmiConfig}><QueryClientProvider client={q}><JotaiProvider><RainbowKitProvider theme={darkTheme({accentColor:'#ff4b1f',accentColorForeground:'white',borderRadius:'small'})}>{children}<Toaster richColors theme="dark" /></RainbowKitProvider></JotaiProvider></QueryClientProvider></WagmiProvider>}
+import { FXProvider } from '@/components/fx/FXProvider';
+
+export default function Providers({ children }: { children: React.ReactNode }) {
+  const [q] = useState(() => new QueryClient());
+  return <WagmiProvider config={wagmiConfig}>
+    <QueryClientProvider client={q}>
+      <JotaiProvider>
+        <FXProvider>
+          <RainbowKitProvider theme={darkTheme({ accentColor: '#ff4b1f', accentColorForeground: 'white', borderRadius: 'medium' })}>
+            {children}<Toaster richColors theme="dark" position="bottom-right" />
+          </RainbowKitProvider>
+        </FXProvider>
+      </JotaiProvider>
+    </QueryClientProvider>
+  </WagmiProvider>;
+}

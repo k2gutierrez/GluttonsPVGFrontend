@@ -1,3 +1,25 @@
 'use client';
-import Link from 'next/link'; import { ConnectButton } from '@rainbow-me/rainbowkit'; import { useAtomValue } from 'jotai'; import { globalViewAtom } from '@/state/game'; import { OPENSEA_URL } from '@/lib/constants';
-export function Header(){const g=useAtomValue(globalViewAtom);return <header className="sticky top-0 z-50 border-b border-white/10 bg-[#090a09]/90 backdrop-blur-xl"><div className="mx-auto flex max-w-[1500px] items-center gap-6 px-4 py-3 md:px-7"><Link href="/" className="font-display text-2xl font-black tracking-tight">GLUTTONS<span className="text-[#ff4b1f]">//</span></Link><nav className="hidden flex-1 items-center justify-center gap-7 text-[11px] uppercase tracking-[.18em] text-zinc-400 md:flex"><Link className="hover:text-[#ff4b1f]" href="/">Live</Link><Link className="hover:text-[#ff4b1f]" href="/my-gluttons">My Gluttons</Link><Link className="hover:text-[#ff4b1f]" href="/rules">Rules</Link><a className="hover:text-[#ff4b1f]" href={OPENSEA_URL} target="_blank">OpenSea ↗</a></nav><div className="ml-auto flex items-center gap-3"><span className="hidden text-[10px] uppercase tracking-widest text-zinc-500 lg:block">Curtis / {g?.currentPhase||'SYNCING'}</span><ConnectButton chainStatus="icon" accountStatus="address" showBalance={false}/></div></div></header>}
+import Link from 'next/link';
+import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { useAtomValue } from 'jotai';
+import { protocolAtom } from '@/state/game';
+import { SITE } from '@/lib/constants';
+import { useProtocolStage } from '@/hooks/useProtocolStage';
+import { useFX } from '@/components/fx/FXProvider';
+
+export function Header({ isolated = false }: { isolated?: boolean }) {
+  const p = useAtomValue(protocolAtom); const stage = useProtocolStage(); const fx = useFX();
+  if (isolated) return <header className="site-header"><div className="header-inner"><Link href="/communities" className="brand">GLUTTONS<span>//</span><em>COMMUNITIES</em></Link><div className="ml-auto flex items-center gap-3"><SoundButton/><ConnectButton chainStatus="icon" accountStatus="address" showBalance={false}/></div></div></header>;
+  return <header className="site-header"><div className="header-inner">
+    <Link href="/" className="brand">GLUTTONS<span>//</span></Link>
+    {stage !== 'awareness' && <nav className="main-nav">
+      {stage === 'mint' ? <><Link href="/">MINT</Link><Link href="/rules">RULES</Link></> : <><Link href="/">LIVE</Link><Link href="/my-gluttons">MY GLUTTONS</Link><Link href="/rules">RULES</Link><a href={SITE.openSeaUrl} target="_blank">OPENSEA ↗</a></>}
+    </nav>}
+    <div className="ml-auto flex items-center gap-3">
+      <span className="hidden text-[9px] uppercase tracking-[.18em] text-zinc-600 lg:block">CURTIS / {stage === 'awareness' ? 'PRE-MINT_SIGNAL' : stage === 'mint' ? 'MINT_OPEN' : p.currentPhase}</span>
+      <button data-fx-sound onClick={fx.toggleSound} className="sound-toggle" aria-label="Toggle interface sound">SND {fx.sound ? 'ON' : 'OFF'}</button>
+      {stage !== 'awareness' && <ConnectButton chainStatus="icon" accountStatus="address" showBalance={false}/>} 
+    </div>
+  </div></header>;
+}
+function SoundButton(){const fx=useFX();return <button data-fx-sound onClick={fx.toggleSound} className="sound-toggle">SND {fx.sound?'ON':'OFF'}</button>}
