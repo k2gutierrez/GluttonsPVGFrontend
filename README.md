@@ -1,4 +1,8 @@
-# Gluttons Frontend — Curtis V2.3 Wallet Mint Counters
+# Gluttons Frontend Curtis V2.5
+
+**Poison Target Lock update.** The complete V2.4 frontend remains intact. Poison now performs a live canonical target read before enabling the transaction, shows the target life clock and Poison Shield countdown, blocks protected/dead/final-bite/too-low-clock targets in the UI, polls the target every 5 seconds, and runs a final `simulateContract` preflight immediately before opening the wallet.
+
+# Gluttons Frontend — Curtis V2.5 Complete
 
 Deploy-ready Next.js frontend updated to the **latest reviewed Gluttons Frontend Integration Manual**.
 
