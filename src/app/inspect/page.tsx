@@ -56,6 +56,10 @@ export default function InspectPage(){
 
   function submit(e:FormEvent){e.preventDefault();void inspect(Number(token));}
   const remain=data?Math.max(0,data.expiry-now):0;
+  const finalBiteExpired=Boolean(data&&data.finalBiteDeadline>0&&data.finalBiteDeadline<=now);
+  const logicallyDead=Boolean(data&&data.visualState===1&&(remain<=0||finalBiteExpired));
+  const displayState=data?(logicallyDead?2:data.visualState):0;
+  const hungryNow=Boolean(data&&displayState===1&&remain>0&&remain<=12*3600);
 
   return <><Header/><main className="page-shell">
     <Kicker>public protocol tool / canonical read</Kicker>
@@ -76,22 +80,22 @@ export default function InspectPage(){
         <Kicker>canonical token state</Kicker>
         <div className="mt-5 flex flex-wrap items-end justify-between gap-4 border-b border-white/10 pb-5">
           <div><span className="text-xs text-zinc-500">GLUTTON</span><h2 className="text-4xl font-bold">#{String(data.id).padStart(4,'0')}</h2></div>
-          <div className="text-right"><span className="text-xs text-zinc-500">STATE</span><div className="text-2xl font-bold text-[#ff5b2e]">{STATE[data.visualState]||`STATE ${data.visualState}`}</div></div>
+          <div className="text-right"><span className="text-xs text-zinc-500">STATE</span><div className="text-2xl font-bold text-[#ff5b2e]">{STATE[displayState]||`STATE ${displayState}`}</div></div>
         </div>
         <div className="mt-5 grid gap-3 sm:grid-cols-2">
           <Read label="OWNER" value={short(data.owner)} detail={data.owner}/>
-          <Read label="CLOCK" value={data.visualState===1?clock(remain):'—'} detail={data.expiry?`EXPIRY ${new Date(data.expiry*1000).toLocaleString()}`:'NO ACTIVE EXPIRY'}/>
-          <Read label="HUNGRY" value={data.isHungry?'YES':'NO'}/>
-          <Read label="FASTING" value={data.fasting?'YES':'NO'}/>
-          <Read label="FINAL BITE" value={data.finalBiteDeadline>now?clock(data.finalBiteDeadline-now):'NONE'}/>
+          <Read label="CLOCK" value={displayState===1?clock(remain):'DEAD'} detail={data.expiry?`EXPIRY ${new Date(data.expiry*1000).toLocaleString()}`:'NO ACTIVE EXPIRY'}/>
+          <Read label="HUNGRY" value={displayState===1?(hungryNow?'YES':'NO'):'N/A'}/>
+          <Read label="FASTING" value={displayState===1?(data.fasting?'YES':'NO'):'ENDED'}/>
+          <Read label="FINAL BITE" value={displayState===1&&data.finalBiteDeadline>now?clock(data.finalBiteDeadline-now):'NONE'}/>
           <Read label="DEATH SETTLED" value={data.deathSettled?'YES':'NO'}/>
         </div>
       </Panel>
       <Panel className="p-5 md:p-7">
         <Kicker>combat / corpse telemetry</Kicker>
         <div className="mt-5 space-y-3">
-          <Read label="POISON PROTECTION" value={data.poisonProtectedUntil>now?clock(data.poisonProtectedUntil-now):'NONE'}/>
-          <Read label="POISON COOLDOWN" value={data.poisonCooldownUntil>now?clock(data.poisonCooldownUntil-now):'READY'}/>
+          <Read label="POISON PROTECTION" value={displayState===1?(data.poisonProtectedUntil>now?clock(data.poisonProtectedUntil-now):'NONE'):'N/A'}/>
+          <Read label="POISON COOLDOWN" value={displayState===1?(data.poisonCooldownUntil>now?clock(data.poisonCooldownUntil-now):'READY'):'N/A'}/>
           <Read label="FRIDGE" value={data.poweredUntil>now?`ON · ${clock(data.poweredUntil-now)}`:'OFF'}/>
           <Read label="DEAD AT" value={data.deadAt?new Date(data.deadAt*1000).toLocaleString():'NOT MATERIALIZED'}/>
           <Read label="SPOIL Q4" value={data.spoilQ4.toLocaleString()}/>

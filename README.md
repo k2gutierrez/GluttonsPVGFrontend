@@ -1,8 +1,12 @@
-# Gluttons Frontend Curtis V2.5
+# Gluttons Frontend Curtis V2.6
 
 **Poison Target Lock update.** The complete V2.4 frontend remains intact. Poison now performs a live canonical target read before enabling the transaction, shows the target life clock and Poison Shield countdown, blocks protected/dead/final-bite/too-low-clock targets in the UI, polls the target every 5 seconds, and runs a final `simulateContract` preflight immediately before opening the wallet.
 
-# Gluttons Frontend — Curtis V2.5 Complete
+
+## V2.6 — Death State Synchronization
+Curtis testing exposed a stale Inspector snapshot problem at the exact death boundary. V2.6 makes My Gluttons clock-aware: when a loaded token crosses expiry it immediately loses living actions, moves to Corpse Inventory, displays Fresh-death artwork, and queues a canonical refresh for only that token (or a maximum 50-token batch). Reap then unlocks `KEEP FRESH`. See `BUILD_NOTES_V2.6.md`.
+
+# Gluttons Frontend — Curtis V2.6 Complete
 
 Deploy-ready Next.js frontend updated to the **latest reviewed Gluttons Frontend Integration Manual**.
 

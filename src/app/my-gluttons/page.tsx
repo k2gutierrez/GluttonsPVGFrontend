@@ -9,23 +9,82 @@ import { Panel, Kicker } from '@/components/Terminal';
 import { TxButton } from '@/components/TxButton';
 import { FlipWord, Scramble, WeightWord } from '@/components/fx/RetroText';
 import { useProtocolStage } from '@/hooks/useProtocolStage';
-import { GluttonToken, isGameplayFresh, statusOf, useOwnedGluttons } from '@/hooks/useOwnedGluttons';
+import { GluttonToken, effectiveVisualState, isGameplayFresh, isLogicallyDead, statusOf, useOwnedGluttons } from '@/hooks/useOwnedGluttons';
 import { protocolAtom } from '@/state/game';
-import { CONTRACTS, FEED_PRICE, GAME_ENGINE_ABI, GLUTTON_NFT_ABI, INSPECTOR_ABI, POISON_PRICE, POWER_PRICE, PRIZE_VAULT_ABI } from '@/lib/constants';
+import { ASSETS, CONTRACTS, FEED_PRICE, GAME_ENGINE_ABI, GLUTTON_NFT_ABI, INSPECTOR_ABI, POISON_PRICE, POWER_PRICE, PRIZE_VAULT_ABI } from '@/lib/constants';
 
 const clock = (seconds: number) => { const n=Math.max(0,seconds); const h=Math.floor(n/3600),m=Math.floor(n%3600/60),s=n%60; return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`; };
 const remaining = (t: GluttonToken, now: number) => Math.max(0, t.expiry - now);
 const tone: Record<string,string> = { 'ALIVE':'text-emerald-400','HUNGRY':'text-[#ff713f]','FASTING':'text-amber-400','FINAL BITE':'text-red-500','FRESH':'text-[#ff713f]','ROTTEN':'text-zinc-500' };
 
 export default function MyGluttons(){
-  const stage=useProtocolStage();const router=useRouter();const p=useAtomValue(protocolAtom);const client=usePublicClient();
-  const {tokens,walletBalance,scannedCount,totalMinted,hasMore,pageSize,loading,loadingMore,refreshing,error,loadMore,refresh,rescan,address}=useOwnedGluttons();const loadMoreRef=useRef<HTMLDivElement>(null);const [selectedId,setSelectedId]=useState<number>();const [prey,setPrey]=useState('');const [reapIds,setReapIds]=useState('');const [now,setNow]=useState(()=>Math.floor(Date.now()/1000));const [finalTable,setFinalTable]=useState<number[]>([]);const [loadingTable,setLoadingTable]=useState(false);
-  useEffect(()=>{if(stage!=='live')router.replace('/')},[stage,router]);useEffect(()=>{const t=setInterval(()=>setNow(Math.floor(Date.now()/1000)),1000);return()=>clearInterval(t)},[]);
-  useEffect(()=>{const el=loadMoreRef.current;if(!el||!hasMore||loading||loadingMore)return;const obs=new IntersectionObserver(entries=>{if(entries[0]?.isIntersecting)loadMore()},{rootMargin:'500px 0px'});obs.observe(el);return()=>obs.disconnect()},[hasMore,loading,loadingMore,loadMore,scannedCount]);
-  const survivors=useMemo(()=>tokens.filter(t=>t.visualState===1),[tokens]);const corpses=useMemo(()=>tokens.filter(t=>t.visualState===2||t.visualState===3),[tokens]);
-  useEffect(()=>{if(!selectedId&&survivors[0])setSelectedId(survivors[0].id);else if(selectedId&&!survivors.some(t=>t.id===selectedId)&&survivors[0])setSelectedId(survivors[0].id)},[survivors,selectedId]);
-  const selected=survivors.find(t=>t.id===selectedId);
-  if(stage!=='live')return null;
+  const stage = useProtocolStage();
+  const router = useRouter();
+  const p = useAtomValue(protocolAtom);
+  const client = usePublicClient();
+  const {
+    tokens, walletBalance, scannedCount, totalMinted, hasMore, pageSize,
+    loading, loadingMore, refreshing, error, loadMore, refresh, refreshIds,
+    rescan, address,
+  } = useOwnedGluttons();
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+  const deathSyncBusy = useRef(false);
+  const [selectedId, setSelectedId] = useState<number>();
+  const [prey, setPrey] = useState('');
+  const [reapIds, setReapIds] = useState('');
+  const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
+  const [finalTable, setFinalTable] = useState<number[]>([]);
+  const [loadingTable, setLoadingTable] = useState(false);
+
+  useEffect(() => { if (stage !== 'live') router.replace('/'); }, [stage, router]);
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  useEffect(() => {
+    const el = loadMoreRef.current;
+    if (!el || !hasMore || loading || loadingMore) return;
+    const obs = new IntersectionObserver(entries => {
+      if (entries[0]?.isIntersecting) loadMore();
+    }, { rootMargin: '500px 0px' });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [hasMore, loading, loadingMore, loadMore, scannedCount]);
+
+  // Do not wait for a manual RPC refresh to remove expired tokens from the
+  // living cockpit. As soon as a loaded clock crosses the contract's death
+  // boundary, the UI treats it as Fresh and queues a small canonical re-read.
+  // Only one <=50-token batch is hydrated at a time, even for the 2,000-token
+  // Curtis stress-test wallet.
+  useEffect(() => {
+    if (deathSyncBusy.current) return;
+    const due = tokens
+      .filter(t => t.visualState === 1 && isLogicallyDead(t, now))
+      .slice(0, pageSize)
+      .map(t => t.id);
+    if (due.length === 0) return;
+    deathSyncBusy.current = true;
+    void refreshIds(due).finally(() => { deathSyncBusy.current = false; });
+  }, [tokens, now, pageSize, refreshIds]);
+
+  const survivors = useMemo(
+    () => tokens.filter(t => t.visualState === 1 && !isLogicallyDead(t, now)),
+    [tokens, now],
+  );
+  const corpses = useMemo(
+    () => tokens.filter(t => t.visualState === 2 || t.visualState === 3 || isLogicallyDead(t, now)),
+    [tokens, now],
+  );
+  useEffect(() => {
+    if (!selectedId && survivors[0]) setSelectedId(survivors[0].id);
+    else if (selectedId && !survivors.some(t => t.id === selectedId)) setSelectedId(survivors[0]?.id);
+  }, [survivors, selectedId]);
+  const selected = survivors.find(t => t.id === selectedId);
+  const reapTokenIds = useMemo(
+    () => [...new Set(reapIds.split(',').map(x => Number(x.trim())).filter(x => Number.isSafeInteger(x) && x > 0))],
+    [reapIds],
+  );
+  if (stage !== 'live') return null;
 
   async function loadFinalTable(){
     if(!client)return;setLoadingTable(true);try{const total=Number(p.totalMinted);const live:number[]=[];for(let start=1;start<=total;start+=50){const ids=Array.from({length:Math.min(50,total-start+1)},(_,i)=>start+i);const r=await client.multicall({allowFailure:true,deployless:true,contracts:ids.map(id=>({address:CONTRACTS.inspector,abi:INSPECTOR_ABI,functionName:'getTokenView',args:[BigInt(id)]})) as any});r.forEach((x:any,i)=>{if(x.status==='success'&&Number(x.result?.visualState)===1)live.push(ids[i])})}setFinalTable(live)}finally{setLoadingTable(false)}
@@ -40,15 +99,15 @@ export default function MyGluttons(){
     {address&&!loading&&!error&&walletBalance===0&&<Panel className="empty-state"><h2>NO GLUTTONS IN THIS WALLET.</h2><p>Connected: {address}. If you just minted or transferred, run a new inventory scan after the transaction confirms.</p><button onClick={rescan} className="ghost-btn">RESCAN INVENTORY</button></Panel>}
     {address&&!loading&&!error&&walletBalance>0&&tokens.length===0&&hasMore&&<div ref={loadMoreRef}><Panel className="empty-state loading-grid"><h2>SEARCHING TOKEN RANGE…</h2><p>This wallet owns {walletBalance.toLocaleString()} Gluttons. Scanned {scannedCount.toLocaleString()} / {totalMinted.toLocaleString()} minted IDs in safe {pageSize}-token pages.</p><button onClick={loadMore} disabled={loadingMore} className="ghost-btn">{loadingMore?'SCANNING…':`SCAN NEXT ${pageSize}`}</button></Panel></div>}
     {tokens.length>0&&<>
-      <div className="inventory-summary"><span>WALLET <b>{walletBalance.toLocaleString()}</b></span><span>LOADED <b>{tokens.length.toLocaleString()}</b></span><span>SCANNED <b>{scannedCount.toLocaleString()} / {totalMinted.toLocaleString()}</b></span><span>SURVIVORS* <b>{survivors.length}</b></span><span>FRESH* <b>{corpses.filter(t=>isGameplayFresh(t)).length}</b></span><span>ROTTEN* <b>{corpses.filter(t=>!isGameplayFresh(t)).length}</b></span><button onClick={refresh} disabled={refreshing}>{refreshing?'REFRESHING…':'REFRESH LOADED ↻'}</button><button onClick={rescan}>FULL RESCAN</button></div>
+      <div className="inventory-summary"><span>WALLET <b>{walletBalance.toLocaleString()}</b></span><span>LOADED <b>{tokens.length.toLocaleString()}</b></span><span>SCANNED <b>{scannedCount.toLocaleString()} / {totalMinted.toLocaleString()}</b></span><span>SURVIVORS* <b>{survivors.length}</b></span><span>FRESH* <b>{corpses.filter(t=>isGameplayFresh(t,now)).length}</b></span><span>ROTTEN* <b>{corpses.filter(t=>!isGameplayFresh(t,now)).length}</b></span><button onClick={refresh} disabled={refreshing}>{refreshing?'REFRESHING…':'REFRESH LOADED ↻'}</button><button onClick={rescan}>FULL RESCAN</button></div>
       <div className="mt-4 grid gap-4 lg:grid-cols-[.62fr_1.38fr]">
         <Panel className="p-4"><Kicker>your survivors</Kicker><div className="survivor-list">{survivors.map(t=><TokenRow key={t.id} t={t} now={now} active={selectedId===t.id} onClick={()=>setSelectedId(t.id)}/>)}</div></Panel>
-        <div className="space-y-4">{selected?<SelectedPosition t={selected} all={survivors} now={now} phase={p.currentPhase} prey={prey} setPrey={setPrey} refresh={refresh}/>:<Panel className="empty-state"><h2>NO LIVING POSITION SELECTED.</h2></Panel>}
-          <Panel className="p-5"><div className="flex flex-wrap items-center justify-between gap-3"><Kicker>corpse inventory</Kicker><span className="text-[10px] text-[#ff5b2e]">THE DEAD BECOME FOOD.</span></div>{corpses.length?<div className="corpse-grid">{corpses.map(c=><CorpseCard key={c.id} corpse={c} survivors={survivors} now={now} refresh={refresh}/>)}</div>:<p className="muted-copy">No Fresh or Rotten Gluttons owned by this wallet.</p>}</Panel>
+        <div className="space-y-4">{selected?<SelectedPosition t={selected} all={survivors} now={now} phase={p.currentPhase} prey={prey} setPrey={setPrey} refreshIds={refreshIds}/>:<Panel className="empty-state"><h2>NO LIVING POSITION SELECTED.</h2></Panel>}
+          <Panel className="p-5"><div className="flex flex-wrap items-center justify-between gap-3"><Kicker>corpse inventory</Kicker><span className="text-[10px] text-[#ff5b2e]">THE DEAD BECOME FOOD.</span></div>{corpses.length?<div className="corpse-grid">{corpses.map(c=><CorpseCard key={c.id} corpse={c} survivors={survivors} now={now} refreshIds={refreshIds}/>)}</div>:<p className="muted-copy">No Fresh or Rotten Gluttons owned by this wallet.</p>}</Panel>
         </div>
       </div>
       <div ref={loadMoreRef} className="mt-4"><Panel className="p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div><Kicker>inventory pagination</Kicker><p className="muted-copy">Loaded {tokens.length.toLocaleString()} of {walletBalance.toLocaleString()} wallet Gluttons · scanned IDs {scannedCount.toLocaleString()} / {totalMinted.toLocaleString()}.</p><p className="muted-copy">* State counts above describe the loaded inventory until the scan completes.</p></div>{hasMore?<button onClick={loadMore} disabled={loadingMore} className="ghost-btn">{loadingMore?'SCANNING NEXT PAGE…':`LOAD NEXT ${pageSize}`}</button>:<b className="text-emerald-400 text-xs">SCAN COMPLETE</b>}</div></Panel></div>
-      <Panel className="mt-4 p-5"><Kicker>protocol tools</Kicker><div className="tool-grid"><div><b>REAP / MATERIALIZE DEATHS</b><p>Permissionless. Enter expired token IDs separated by commas. This does not create a target list.</p><div className="flex gap-2"><input value={reapIds} onChange={e=>setReapIds(e.target.value.replace(/[^0-9, ]/g,''))} placeholder="84, 551, 1102"/><TxButton label="REAP IDS" address={CONTRACTS.gameEngine} abi={GAME_ENGINE_ABI} functionName="reap" args={[[...new Set(reapIds.split(',').map(x=>x.trim()).filter(Boolean).map(BigInt))]]} disabled={!reapIds.trim()} onConfirmed={refresh}/></div></div><div><b>FINAL TABLE</b><p>Loads canonical living token IDs only when settlement is needed, then passes the full list to settleGame.</p><button onClick={loadFinalTable} className="ghost-btn">{loadingTable?'SCANNING…':`LOAD FINAL TABLE${finalTable.length?` (${finalTable.length})`:''}`}</button>{finalTable.length>0&&<TxButton label="SETTLE TABLE" address={CONTRACTS.gameEngine} abi={GAME_ENGINE_ABI} functionName="settleGame" args={[finalTable.map(BigInt)]} className="ml-2"/>}</div></div></Panel>
+      <Panel className="mt-4 p-5"><Kicker>protocol tools</Kicker><div className="tool-grid"><div><b>REAP / MATERIALIZE DEATHS</b><p>Permissionless. Enter expired token IDs separated by commas. This does not create a target list.</p><div className="flex gap-2"><input value={reapIds} onChange={e=>setReapIds(e.target.value.replace(/[^0-9, ]/g,''))} placeholder="84, 551, 1102"/><TxButton label="REAP IDS" address={CONTRACTS.gameEngine} abi={GAME_ENGINE_ABI} functionName="reap" args={[reapTokenIds.map(BigInt)]} disabled={reapTokenIds.length===0} onConfirmed={()=>refreshIds(reapTokenIds)}/></div></div><div><b>FINAL TABLE</b><p>Loads canonical living token IDs only when settlement is needed, then passes the full list to settleGame.</p><button onClick={loadFinalTable} className="ghost-btn">{loadingTable?'SCANNING…':`LOAD FINAL TABLE${finalTable.length?` (${finalTable.length})`:''}`}</button>{finalTable.length>0&&<TxButton label="SETTLE TABLE" address={CONTRACTS.gameEngine} abi={GAME_ENGINE_ABI} functionName="settleGame" args={[finalTable.map(BigInt)]} className="ml-2"/>}</div></div></Panel>
       {p.isSettled&&<Panel className="mt-4 verdict-panel p-6"><Kicker>settled</Kicker><h2>THE TABLE IS CLOSED.</h2><TxButton label="CLAIM REWARDS" address={CONTRACTS.prizeVault} abi={PRIZE_VAULT_ABI} functionName="claimPrize"/></Panel>}
     </>}
     <div className="retro-marquee"><div>OWNER::{address||'DISCONNECTED'} // LOADED::{tokens.length}/{walletBalance} // SURVIVORS*::{survivors.length} // CORPSES*::{corpses.length} // PHASE::{p.currentPhase} // NO SAMPLE DATA //</div></div>
@@ -68,20 +127,20 @@ type PoisonTargetInfo = {
   fasting: boolean;
 };
 
-function SelectedPosition({t,all,now,phase,prey,setPrey,refresh}:{t:GluttonToken;all:GluttonToken[];now:number;phase:string;prey:string;setPrey:(x:string)=>void;refresh:()=>void}){
-  const st=statusOf(t,now);const rem=remaining(t,now);const preLS=phase!=='LAST_SUPPER'&&phase!=='SETTLED';const rescue=t.fasting||t.finalBiteDeadline>now;const canFeed=preLS&&(rem<=12*3600||rescue);const canFast=preLS&&rem<=12*3600&&!t.fasting;const canPoison=preLS&&!t.fasting&&t.finalBiteDeadline<=now&&rem>3600&&t.poisonCooldownUntil<=now;const devourPhase=phase==='PLAGUE'||phase==='LAST_SUPPER';const canDevour=devourPhase&&rem<=12*3600;const preyOptions=all.filter(x=>x.id!==t.id);
+function SelectedPosition({t,all,now,phase,prey,setPrey,refreshIds}:{t:GluttonToken;all:GluttonToken[];now:number;phase:string;prey:string;setPrey:(x:string)=>void;refreshIds:(ids:number[])=>Promise<void>}){
+  const st=statusOf(t,now);const rem=remaining(t,now);const preLS=phase!=='LAST_SUPPER'&&phase!=='SETTLED';const rescue=t.fasting||t.finalBiteDeadline>now;const canFeed=preLS&&(rem<=12*3600||rescue);const canFast=preLS&&rem<=12*3600&&!t.fasting;const canPoison=preLS&&!t.fasting&&t.finalBiteDeadline<=now&&rem>3600&&t.poisonCooldownUntil<=now;const devourPhase=phase==='PLAGUE'||phase==='LAST_SUPPER';const canDevour=devourPhase&&rem<=12*3600;const preyOptions=all.filter(x=>x.id!==t.id);const refreshSelf=()=>refreshIds([t.id]);
   return <Panel className="selected-position p-5 md:p-6"><div className="flex items-center justify-between"><Kicker>selected position</Kicker><span className="text-xs text-zinc-500">GLUTTON #{String(t.id).padStart(4,'0')}</span></div><div className="selected-grid"><div className="selected-art"><GluttonArt t={t}/></div><div><div className="selected-state"><div><strong className={tone[st]}>{st}</strong><small>CAN #{t.id} ACT RIGHT NOW?</small></div><time className={st==='HUNGRY'||st==='FINAL BITE'?'timer-blink':''}>{st==='FINAL BITE'?clock(t.finalBiteDeadline-now):clock(rem)}</time></div>
-    <div className="action-grid"><Action title="FEED" cost="0.0006 APE" desc={canFeed?'Add current Meal hours.':phase==='LAST_SUPPER'?'Last Supper: normal Feed is closed.':'Hungry at 12H.'}><TxButton label="FEED" address={CONTRACTS.gameEngine} abi={GAME_ENGINE_ABI} functionName="feed" args={[BigInt(t.id)]} value={FEED_PRICE} disabled={!canFeed} onConfirmed={refresh}/></Action>
-      <Action title="FAST" cost="FREE" desc={canFast?'Free survival; target protection drops.':phase==='LAST_SUPPER'?'Last Supper: FAST is closed.':t.fasting?'Already Fasting.':'Hungry at 12H.'}><TxButton label="ENTER FAST" address={CONTRACTS.gameEngine} abi={GAME_ENGINE_ABI} functionName="enterFast" args={[BigInt(t.id)]} disabled={!canFast} className="fast-btn" onConfirmed={refresh}/></Action>
-      <PoisonTargetControl attacker={t} now={now} phase={phase} attackerCanPoison={canPoison} onConfirmed={refresh}/>
+    <div className="action-grid"><Action title="FEED" cost="0.0006 APE" desc={canFeed?'Add current Meal hours.':phase==='LAST_SUPPER'?'Last Supper: normal Feed is closed.':'Hungry at 12H.'}><TxButton label="FEED" address={CONTRACTS.gameEngine} abi={GAME_ENGINE_ABI} functionName="feed" args={[BigInt(t.id)]} value={FEED_PRICE} disabled={!canFeed} onConfirmed={refreshSelf}/></Action>
+      <Action title="FAST" cost="FREE" desc={canFast?'Free survival; target protection drops.':phase==='LAST_SUPPER'?'Last Supper: FAST is closed.':t.fasting?'Already Fasting.':'Hungry at 12H.'}><TxButton label="ENTER FAST" address={CONTRACTS.gameEngine} abi={GAME_ENGINE_ABI} functionName="enterFast" args={[BigInt(t.id)]} disabled={!canFast} className="fast-btn" onConfirmed={refreshSelf}/></Action>
+      <PoisonTargetControl attacker={t} now={now} phase={phase} attackerCanPoison={canPoison} onConfirmed={(targetId)=>refreshIds([t.id,targetId])}/>
       <Action title="TOKEN STATUS" cost="READ ONLY" desc={`Protection: ${t.poisonProtectedUntil>now?clock(t.poisonProtectedUntil-now):'NONE'} · Cooldown: ${t.poisonCooldownUntil>now?clock(t.poisonCooldownUntil-now):'READY'}`}><div className="grid gap-2 sm:grid-cols-2"><Link href={`/inspect?token=${t.id}`} className="ghost-btn text-center">FULL INSPECT</Link><TxButton label="SYNC METADATA" address={CONTRACTS.gluttonNFT} abi={GLUTTON_NFT_ABI} functionName="refreshMetadata" args={[BigInt(t.id)]} className="secondary-action"/></div></Action>
     </div>
-    {devourPhase&&<div className="devour-panel"><div><b>DEVOUR THE LIVING</b><p>Burn one other living Glutton you own. The eater goes to 36H. The prey creates no corpse.</p></div><select value={prey} onChange={e=>setPrey(e.target.value)}><option value="">SELECT YOUR PREY</option>{preyOptions.map(x=><option key={x.id} value={x.id}>#{x.id}</option>)}</select><TxButton label="DEVOUR OWN GLUTTON" address={CONTRACTS.gameEngine} abi={GAME_ENGINE_ABI} functionName="liveDevour" args={[BigInt(t.id),BigInt(prey||0)]} disabled={!canDevour||!prey} className="danger-pulse" onConfirmed={refresh}/></div>}
+    {devourPhase&&<div className="devour-panel"><div><b>DEVOUR THE LIVING</b><p>Burn one other living Glutton you own. The eater goes to 36H. The prey creates no corpse.</p></div><select value={prey} onChange={e=>setPrey(e.target.value)}><option value="">SELECT YOUR PREY</option>{preyOptions.map(x=><option key={x.id} value={x.id}>#{x.id}</option>)}</select><TxButton label="DEVOUR OWN GLUTTON" address={CONTRACTS.gameEngine} abi={GAME_ENGINE_ABI} functionName="liveDevour" args={[BigInt(t.id),BigInt(prey||0)]} disabled={!canDevour||!prey} className="danger-pulse" onConfirmed={()=>refreshIds([t.id,Number(prey)])}/></div>}
     {phase==='LAST_SUPPER'&&<div className="truce-panel"><b>THE TRUCE</b><p>RETIRE records this Glutton's current-owner vote. Any transfer/death can invalidate or reset the table.</p><TxButton label="RETIRE / VOTE TRUCE" address={CONTRACTS.gameEngine} abi={GAME_ENGINE_ABI} functionName="voteTruce" args={[BigInt(t.id)]}/></div>}
   </div></div></Panel>
 }
 
-function PoisonTargetControl({attacker,now,phase,attackerCanPoison,onConfirmed}:{attacker:GluttonToken;now:number;phase:string;attackerCanPoison:boolean;onConfirmed:()=>void}){
+function PoisonTargetControl({attacker,now,phase,attackerCanPoison,onConfirmed}:{attacker:GluttonToken;now:number;phase:string;attackerCanPoison:boolean;onConfirmed:(targetId:number)=>void}){
   const client=usePublicClient();
   const [target,setTarget]=useState('');
   const [info,setInfo]=useState<PoisonTargetInfo|null>(null);
@@ -114,11 +173,12 @@ function PoisonTargetControl({attacker,now,phase,attackerCanPoison,onConfirmed}:
   const targetRemain=info?Math.max(0,info.expiry-now):0;
   const shieldRemain=info?Math.max(0,info.poisonProtectedUntil-now):0;
   const isSelf=Boolean(info&&info.id===attacker.id);
-  const deadTarget=Boolean(info&&(info.visualState===2||info.visualState===3||targetRemain<=0));
-  const finalBite=Boolean(info&&info.finalBiteDeadline>0);
-  const protectedTarget=Boolean(info&&!info.fasting&&!finalBite&&!deadTarget&&shieldRemain>0);
-  const clockTooLow=Boolean(info&&!info.fasting&&!finalBite&&!deadTarget&&targetRemain<=3600);
-  const validTarget=Boolean(info&&!isSelf&&!deadTarget&&!finalBite&&!protectedTarget&&!clockTooLow);
+  const finalBiteActive=Boolean(info&&info.finalBiteDeadline>now);
+  const finalBiteExpired=Boolean(info&&info.finalBiteDeadline>0&&info.finalBiteDeadline<=now);
+  const deadTarget=Boolean(info&&(info.visualState===2||info.visualState===3||targetRemain<=0||finalBiteExpired));
+  const protectedTarget=Boolean(info&&!info.fasting&&!finalBiteActive&&!deadTarget&&shieldRemain>0);
+  const clockTooLow=Boolean(info&&!info.fasting&&!finalBiteActive&&!deadTarget&&targetRemain<=3600);
+  const validTarget=Boolean(info&&!isSelf&&!deadTarget&&!finalBiteActive&&!protectedTarget&&!clockTooLow);
 
   let targetStatus='ENTER TARGET ID';let buttonLabel='POISON';let statusClass='idle';let detail='Manual token ID. No official victim list.';
   if(target&&checking){targetStatus='READING TARGET…';buttonLabel='CHECKING TARGET';statusClass='checking';detail='Reading canonical state before a wallet transaction is allowed.'}
@@ -126,7 +186,7 @@ function PoisonTargetControl({attacker,now,phase,attackerCanPoison,onConfirmed}:
   else if(info){
     if(isSelf){targetStatus='SELF TARGET';buttonLabel='CANNOT POISON SELF';statusClass='blocked';detail='Choose another Glutton.'}
     else if(deadTarget){targetStatus='TARGET DEAD';buttonLabel='TARGET DEAD';statusClass='blocked';detail='Dead Gluttons cannot receive Poison.'}
-    else if(finalBite){targetStatus='FINAL BITE';buttonLabel='CANNOT POISON';statusClass='blocked';detail='This Glutton is already in Final Bite.'}
+    else if(finalBiteActive){targetStatus='FINAL BITE';buttonLabel='CANNOT POISON';statusClass='blocked';detail='This Glutton is already in Final Bite.'}
     else if(info.fasting){targetStatus='FASTING — VULNERABLE';buttonLabel='POISON';statusClass='vulnerable';detail='FAST bypasses Poison protection. A successful Poison triggers a 1H Final Bite.'}
     else if(protectedTarget){targetStatus='POISON PROTECTED';buttonLabel='TARGET PROTECTED';statusClass=shieldRemain<=600?'protected urgent':'protected';detail='Wait for the shield to expire. The life clock keeps running while protection counts down.'}
     else if(clockTooLow){targetStatus='CLOCK TOO LOW';buttonLabel='CANNOT POISON';statusClass='blocked';detail='Normal Poison requires the target to have more than 1H remaining.'}
@@ -146,15 +206,18 @@ function PoisonTargetControl({attacker,now,phase,attackerCanPoison,onConfirmed}:
       <div className="poison-target-input"><input value={target} onChange={e=>setTarget(e.target.value.replace(/\D/g,''))} placeholder="TARGET TOKEN ID" inputMode="numeric"/><span>PUBLIC READ // NO TARGET LIST</span></div>
       {target&&<div className={`target-lock-card ${statusClass}`}>
         <div className="target-lock-head"><div><small>TARGET LOCK</small><strong>#{String(info?.id||Number(target)||0).padStart(4,'0')}</strong></div><b>{targetStatus}</b></div>
-        {info&&<div className="target-timers"><div><span>LIFE CLOCK</span><time className={targetRemain<=3600?'timer-blink':''}>{clock(targetRemain)}</time></div><div><span>POISON SHIELD</span><time className={protectedTarget&&shieldRemain<=600?'shield-urgent':''}>{info.fasting?'BYPASSED':shieldRemain>0?clock(shieldRemain):'OPEN'}</time></div></div>}
+        {info&&<div className="target-timers"><div><span>LIFE CLOCK</span><time className={!deadTarget&&targetRemain<=3600?'timer-blink':''}>{deadTarget?'DEAD':clock(targetRemain)}</time></div><div><span>POISON SHIELD</span><time className={protectedTarget&&shieldRemain<=600?'shield-urgent':''}>{deadTarget?'N/A':info.fasting?'BYPASSED':shieldRemain>0?clock(shieldRemain):'OPEN'}</time></div></div>}
         <p>{detail}</p>
       </div>}
-      <TxButton label={buttonLabel} address={CONTRACTS.gameEngine} abi={GAME_ENGINE_ABI} functionName="poison" args={[BigInt(attacker.id),BigInt(target||0)]} value={POISON_PRICE} disabled={!canSubmit} preflight onConfirmed={()=>{onConfirmed();setTimeout(()=>{setInfo(null);setTarget('')},700)}}/>
+      <TxButton label={buttonLabel} address={CONTRACTS.gameEngine} abi={GAME_ENGINE_ABI} functionName="poison" args={[BigInt(attacker.id),BigInt(target||0)]} value={POISON_PRICE} disabled={!canSubmit} preflight onConfirmed={()=>{onConfirmed(info?.id||Number(target));setTimeout(()=>{setInfo(null);setTarget('')},700)}}/>
     </div>
   </Action>
 }
 
-function CorpseCard({corpse,survivors,now,refresh}:{corpse:GluttonToken;survivors:GluttonToken[];now:number;refresh:()=>void}){const fresh=isGameplayFresh(corpse);const [eater,setEater]=useState('');const powered=corpse.poweredUntil>now;const eligible=survivors.filter(s=>{const r=remaining(s,now);return fresh?r<=12*3600:r<3600});return <div className={`corpse-card ${fresh?'fresh':'rotten'}`}><div className="corpse-head"><GluttonArt t={corpse}/><div><strong>#{String(corpse.id).padStart(4,'0')}</strong><span>{fresh?'FRESH CORPSE':'ROTTEN / EMERGENCY FOOD'}</span></div></div>{corpse.deadAt===0?<><p className="corpse-help">Logical death detected. Materialize it before corpse actions.</p><TxButton label="REGISTER CORPSE / REAP" address={CONTRACTS.gameEngine} abi={GAME_ENGINE_ABI} functionName="reap" args={[[BigInt(corpse.id)]]} className="w-full secondary-action" onConfirmed={refresh}/></>:<><div className="corpse-status">{fresh?<>{powered?<b>FRIDGE ON · {clock(corpse.poweredUntil-now)}</b>:<b>FRIDGE OFF</b>}<span>Refrigeration slows spoilage 4× for 24H.</span></>:<><b>EMERGENCY FOOD</b><span>Rotten is usable only at the emergency clock gate.</span></>}</div>{fresh&&<TxButton label={powered?'KEEP FRESH — ACTIVE':'KEEP FRESH'} address={CONTRACTS.gameEngine} abi={GAME_ENGINE_ABI} functionName="powerFridge" args={[BigInt(corpse.id)]} value={POWER_PRICE} disabled={powered} className="w-full" onConfirmed={refresh}/>}<div className="eat-row"><select value={eater} onChange={e=>setEater(e.target.value)}><option value="">SELECT EATER</option>{eligible.map(s=><option key={s.id} value={s.id}>#{s.id} · {clock(remaining(s,now))}</option>)}</select><TxButton label="EAT CORPSE" address={CONTRACTS.gameEngine} abi={GAME_ENGINE_ABI} functionName="consumeCorpse" args={[BigInt(eater||0),BigInt(corpse.id)]} disabled={!eater} className="secondary-action" onConfirmed={refresh}/></div></>}</div>}
-
-function GluttonArt({t}:{t:GluttonToken}){const [src,setSrc]=useState(t.image||'/art/glutton-1.png');useEffect(()=>setSrc(t.image||'/art/glutton-1.png'),[t.image]);return <img src={src} onError={()=>setSrc('/art/glutton-1.png')} alt={`Glutton #${t.id}`} />}
+function CorpseCard({corpse,survivors,now,refreshIds}:{corpse:GluttonToken;survivors:GluttonToken[];now:number;refreshIds:(ids:number[])=>Promise<void>}){
+  const fresh=isGameplayFresh(corpse,now);const [eater,setEater]=useState('');const powered=corpse.poweredUntil>now;const eligible=survivors.filter(s=>{const r=remaining(s,now);return fresh?r<=12*3600:r<3600});
+  const refreshCorpse=()=>refreshIds([corpse.id]);
+  return <div className={`corpse-card ${fresh?'fresh':'rotten'}`}><div className="corpse-head"><GluttonArt t={corpse}/><div><strong>#{String(corpse.id).padStart(4,'0')}</strong><span>{fresh?'FRESH CORPSE':'ROTTEN / EMERGENCY FOOD'}</span></div></div>{corpse.deadAt===0?<><div className="corpse-status"><b>DEATH DETECTED · FRESH</b><span>Register the death onchain before the refrigerator can start.</span></div><TxButton label="REGISTER DEATH / REAP" address={CONTRACTS.gameEngine} abi={GAME_ENGINE_ABI} functionName="reap" args={[[BigInt(corpse.id)]]} className="w-full secondary-action" onConfirmed={refreshCorpse}/><button className="ghost-btn mt-2 w-full" disabled>KEEP FRESH — REGISTER DEATH FIRST</button></>:<><div className="corpse-status">{fresh?<>{powered?<b>FRIDGE ON · {clock(corpse.poweredUntil-now)}</b>:<b>FRIDGE OFF</b>}<span>Refrigeration slows spoilage 4× for 24H.</span></>:<><b>EMERGENCY FOOD</b><span>Rotten is usable only at the emergency clock gate.</span></>}</div>{fresh&&<TxButton label={powered?'KEEP FRESH — ACTIVE':'KEEP FRESH'} address={CONTRACTS.gameEngine} abi={GAME_ENGINE_ABI} functionName="powerFridge" args={[BigInt(corpse.id)]} value={POWER_PRICE} disabled={powered} className="w-full" onConfirmed={refreshCorpse}/>}<div className="eat-row"><select value={eater} onChange={e=>setEater(e.target.value)}><option value="">SELECT EATER</option>{eligible.map(s=><option key={s.id} value={s.id}>#{s.id} · {clock(remaining(s,now))}</option>)}</select><TxButton label="EAT CORPSE" address={CONTRACTS.gameEngine} abi={GAME_ENGINE_ABI} functionName="consumeCorpse" args={[BigInt(eater||0),BigInt(corpse.id)]} disabled={!eater} className="secondary-action" onConfirmed={()=>refreshIds([corpse.id,Number(eater)])}/></div></>}</div>
+}
+function GluttonArt({t}:{t:GluttonToken}){const visualState=effectiveVisualState(t);const fallback=visualState===2?ASSETS.fallbackFresh:visualState===3?ASSETS.fallbackRotten:ASSETS.fallbackAlive;const desired=visualState!==t.visualState?fallback:(t.image||fallback);const [src,setSrc]=useState(desired);useEffect(()=>setSrc(desired),[desired]);return <img src={src} onError={()=>setSrc(fallback)} alt={`Glutton #${t.id}`} />}
 function Action({title,cost,desc,children}:{title:string;cost:string;desc:string;children:React.ReactNode}){return <div className="action-card"><div><strong>{title}</strong><span>{cost}</span></div><p>{desc}</p>{children}</div>}

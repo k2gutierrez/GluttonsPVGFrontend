@@ -32,19 +32,38 @@ export type GluttonToken = {
 export const INVENTORY_PAGE_SIZE = 50;
 const okResult = (r: any) => r?.status === 'success' ? r.result : undefined;
 
-// Reviewed contract lock: GameEngine.getVisualState() applies the same
-// refrigerated spoilage math used by gameplay. Inspector visualState is the
-// canonical frontend Fresh/Rotten source — do not re-implement spoilage here.
-export function isGameplayFresh(t: GluttonToken) {
-  return t.visualState === 2;
+// GameEngine.getVisualState() remains the canonical Fresh/Rotten source.
+// However, a loaded token can cross its expiry between RPC reads. The frontend
+// must stop presenting ALIVE actions immediately at that boundary instead of
+// waiting for a manual refresh. Under the currently deployed Curtis contract,
+// expiry (or an elapsed Final Bite deadline) is logical death even if the last
+// Inspector snapshot still says visualState=1.
+export function isLogicallyDead(t: GluttonToken, now = Math.floor(Date.now() / 1000)) {
+  if (t.visualState === 2 || t.visualState === 3) return true;
+  if (t.visualState !== 1) return false;
+  if (t.finalBiteDeadline > 0 && now >= t.finalBiteDeadline) return true;
+  return t.expiry > 0 && now >= t.expiry;
+}
+
+export function effectiveVisualState(t: GluttonToken, now = Math.floor(Date.now() / 1000)) {
+  if (t.visualState === 2 || t.visualState === 3) return t.visualState;
+  // Until Inspector is re-read, an expired living snapshot is optimistically
+  // treated as Fresh. Canonical hydration immediately follows in the page.
+  if (isLogicallyDead(t, now)) return 2;
+  return t.visualState;
+}
+
+export function isGameplayFresh(t: GluttonToken, now = Math.floor(Date.now() / 1000)) {
+  return effectiveVisualState(t, now) === 2;
 }
 
 export function statusOf(t: GluttonToken, now = Math.floor(Date.now() / 1000)) {
-  if (t.visualState === 2) return 'FRESH';
-  if (t.visualState === 3) return 'ROTTEN';
+  const visualState = effectiveVisualState(t, now);
+  if (visualState === 2) return 'FRESH';
+  if (visualState === 3) return 'ROTTEN';
   if (t.finalBiteDeadline > now) return 'FINAL BITE';
   if (t.fasting) return 'FASTING';
-  if (t.isHungry) return 'HUNGRY';
+  if (t.expiry > now && (t.expiry - now) <= 12 * 3600) return 'HUNGRY';
   return 'ALIVE';
 }
 
@@ -172,9 +191,47 @@ export function useOwnedGluttons() {
     await scanPage(nextTokenId);
   }, [hasMore, loading, loadingMore, scanPage, nextTokenId]);
 
+  // Refresh only specific token IDs. This is used for clock-boundary state
+  // transitions and action confirmations so a 2,000-token wallet never needs a
+  // full inventory hydration just because one Glutton died, fed, or was reaped.
+  const refreshIds = useCallback(async (ids: number[]) => {
+    if (!client || !address || ids.length === 0) return;
+    const uniqueIds = [...new Set(ids.filter(id => Number.isSafeInteger(id) && id > 0))];
+    if (uniqueIds.length === 0) return;
+
+    try {
+      const hydratedOwned: GluttonToken[] = [];
+      for (let i = 0; i < uniqueIds.length; i += INVENTORY_PAGE_SIZE) {
+        const batch = uniqueIds.slice(i, i + INVENTORY_PAGE_SIZE);
+        const hydrated = await hydrateIds(batch);
+        hydrated.forEach(t => {
+          if (t.owner.toLowerCase() === address.toLowerCase()) hydratedOwned.push(t);
+        });
+      }
+
+      setTokens(prev => {
+        const requested = new Set(uniqueIds);
+        const map = new Map(prev.filter(t => !requested.has(t.id)).map(t => [t.id, t]));
+        hydratedOwned.forEach(t => map.set(t.id, t));
+        return [...map.values()].sort((a, b) => a.id - b.id);
+      });
+
+      // Burns/consumption can change ERC-721 balance, so keep the header honest.
+      const balance = await client.readContract({
+        address: CONTRACTS.gluttonNFT,
+        abi: GLUTTON_NFT_ABI,
+        functionName: 'balanceOf',
+        args: [address],
+      });
+      setWalletBalance(Number(balance));
+    } catch (e: any) {
+      setError(e?.shortMessage || e?.message || 'Could not refresh token state.');
+    }
+  }, [client, address, hydrateIds]);
+
   // Refresh only the inventory already discovered. This keeps a player who has
   // scrolled deep into a large wallet from being thrown back to token #1 after
-  // Feed / Poison / Reap / Fridge confirms.
+  // a manual full refresh.
   const refresh = useCallback(async () => {
     if (!client || !address || tokens.length === 0 || refreshing) return;
     setRefreshing(true);
@@ -261,6 +318,7 @@ export function useOwnedGluttons() {
     error,
     loadMore,
     refresh,
+    refreshIds,
     rescan,
     address,
   };
