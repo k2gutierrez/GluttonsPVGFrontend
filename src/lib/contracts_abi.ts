@@ -2,15 +2,22 @@ export const contracts = {
     owner: "0xca067E20db2cDEF80D1c7130e5B71C42c0305529",
     user1: "0x7738797825902889925Ec60dE38d20Cd01250F64",
     user2: "0xA3E187116bcAD707a6b12C7DeC32037a8Be45b1d",
-    weth: "0xe0A9202D0b1D09226EB2f77A6470d9e8Ac839a5B",
-    futureRewardsVault: "0x8cca3367C29A7C7251c9cF45ad6E26214B2Cc3B6",
-    pvgTreasury: "0x94F973a8245ae13E0f949a63D33668b17070c8dC",
-    gameEngine: "0xF88A0170c0d7665091CF583eC5D8148985b9f3a7",
-    prizeVault: "0x00bA2b1ca83516a745BE4b27B14b5922ffe7216C",
-    royaltyTreasury: "0xA225544a6Bdc93e0B9d5332Fc87e0E9328666241",
-    nft: "0x93c94eE7a7edf93839B51F1CD567428e41976a5e",
-    inspector: "0x1C4Fe69431fa7d854f66Ba17fBe14283Df016F16"
+    weth: "0x65e1457876387220D2Ca177DcdEf0A0c8495A8b8",
+    futureRewardsVault: "0x14639b47Cab1D7B07Be568F0AAf878499a950822",
+    pvgTreasury: "0xEAb9419d53286208167E6cAAC809FAF675C28CD1",
+    gameEngine: "0x400F7D41BF21aC4b19225BCabE8e926C8c7e1461",
+    prizeVault: "0x73279EdBC61BEE24802289011dd1A4167594B96B",
+    royaltyTreasury: "0xeb52f1e9f833C512D499D5232e090E0229B28E9E",
+    nft: "0xf38653B3D44DA274c6EC84aC1c46EA3080dd631b",
+    inspector: "0x1F758E298294bc0634fe7CFb8a0671e3CFca85C1"
 }
+
+const something = [
+    "https://arweave.net/r92txKdo5_Z8wHwjLV511pvYs8TaxcJzM7TWf81Nzb0",
+    "https://arweave.net/F7CTP2tlZZgTBQaPQTHiV64y2TIALFgPA27QpTWV694/",
+    "https://arweave.net/F7CTP2tlZZgTBQaPQTHiV64y2TIALFgPA27QpTWV694/",
+    "https://arweave.net/F7CTP2tlZZgTBQaPQTHiV64y2TIALFgPA27QpTWV694/"
+]
 
 export const futureRewardsVaultABI = [
     {
@@ -824,6 +831,19 @@ export const GameEngineABI = [
     },
     {
         "type": "function",
+        "name": "MAX_AMOUNT_PER_WALLET",
+        "inputs": [],
+        "outputs": [
+            {
+                "name": "",
+                "type": "uint256",
+                "internalType": "uint256"
+            }
+        ],
+        "stateMutability": "view"
+    },
+    {
+        "type": "function",
         "name": "MAX_CLOCK_HOURS",
         "inputs": [],
         "outputs": [
@@ -915,6 +935,60 @@ export const GameEngineABI = [
     },
     {
         "type": "function",
+        "name": "addInviteCollection",
+        "inputs": [
+            {
+                "name": "name_",
+                "type": "string",
+                "internalType": "string"
+            },
+            {
+                "name": "collection_",
+                "type": "address",
+                "internalType": "address"
+            },
+            {
+                "name": "maxAllowed_",
+                "type": "uint256",
+                "internalType": "uint256"
+            },
+            {
+                "name": "maxPerWallet_",
+                "type": "uint256",
+                "internalType": "uint256"
+            }
+        ],
+        "outputs": [],
+        "stateMutability": "nonpayable"
+    },
+    {
+        "type": "function",
+        "name": "allowCommunityMint",
+        "inputs": [
+            {
+                "name": "collectionId",
+                "type": "uint256",
+                "internalType": "uint256"
+            }
+        ],
+        "outputs": [],
+        "stateMutability": "nonpayable"
+    },
+    {
+        "type": "function",
+        "name": "changeCommunityMintPrice",
+        "inputs": [
+            {
+                "name": "newPrice",
+                "type": "uint256",
+                "internalType": "uint256"
+            }
+        ],
+        "outputs": [],
+        "stateMutability": "nonpayable"
+    },
+    {
+        "type": "function",
         "name": "consumeCorpse",
         "inputs": [
             {
@@ -952,6 +1026,13 @@ export const GameEngineABI = [
     },
     {
         "type": "function",
+        "name": "endPreMintedPhase",
+        "inputs": [],
+        "outputs": [],
+        "stateMutability": "nonpayable"
+    },
+    {
+        "type": "function",
         "name": "ensureStarted",
         "inputs": [],
         "outputs": [],
@@ -982,6 +1063,51 @@ export const GameEngineABI = [
         ],
         "outputs": [],
         "stateMutability": "payable"
+    },
+    {
+        "type": "function",
+        "name": "getInvitedNftCommunities",
+        "inputs": [],
+        "outputs": [
+            {
+                "name": "",
+                "type": "tuple[]",
+                "internalType": "struct GameEngine.Community[]",
+                "components": [
+                    {
+                        "name": "name",
+                        "type": "string",
+                        "internalType": "string"
+                    },
+                    {
+                        "name": "collectionAddress",
+                        "type": "address",
+                        "internalType": "address"
+                    },
+                    {
+                        "name": "maxTotalAmountAllowed",
+                        "type": "uint256",
+                        "internalType": "uint256"
+                    },
+                    {
+                        "name": "maxPerWallet",
+                        "type": "uint256",
+                        "internalType": "uint256"
+                    },
+                    {
+                        "name": "allowed",
+                        "type": "bool",
+                        "internalType": "bool"
+                    },
+                    {
+                        "name": "amountMinted",
+                        "type": "uint256",
+                        "internalType": "uint256"
+                    }
+                ]
+            }
+        ],
+        "stateMutability": "view"
     },
     {
         "type": "function",
@@ -1068,9 +1194,51 @@ export const GameEngineABI = [
     {
         "type": "function",
         "name": "mint",
-        "inputs": [],
+        "inputs": [
+            {
+                "name": "amount",
+                "type": "uint256",
+                "internalType": "uint256"
+            }
+        ],
         "outputs": [],
         "stateMutability": "payable"
+    },
+    {
+        "type": "function",
+        "name": "modifyCollectionMaxAllowed",
+        "inputs": [
+            {
+                "name": "collectionId",
+                "type": "uint256",
+                "internalType": "uint256"
+            },
+            {
+                "name": "newAmount",
+                "type": "uint256",
+                "internalType": "uint256"
+            }
+        ],
+        "outputs": [],
+        "stateMutability": "nonpayable"
+    },
+    {
+        "type": "function",
+        "name": "modifyCollectionMaxPerWallet",
+        "inputs": [
+            {
+                "name": "collectionId",
+                "type": "uint256",
+                "internalType": "uint256"
+            },
+            {
+                "name": "newAmount",
+                "type": "uint256",
+                "internalType": "uint256"
+            }
+        ],
+        "outputs": [],
+        "stateMutability": "nonpayable"
     },
     {
         "type": "function",
@@ -1118,6 +1286,24 @@ export const GameEngineABI = [
     },
     {
         "type": "function",
+        "name": "preMint",
+        "inputs": [
+            {
+                "name": "amount",
+                "type": "uint256",
+                "internalType": "uint256"
+            },
+            {
+                "name": "collectionId",
+                "type": "uint256",
+                "internalType": "uint256"
+            }
+        ],
+        "outputs": [],
+        "stateMutability": "payable"
+    },
+    {
+        "type": "function",
         "name": "reap",
         "inputs": [
             {
@@ -1139,6 +1325,43 @@ export const GameEngineABI = [
     {
         "type": "function",
         "name": "s_aliveCount",
+        "inputs": [],
+        "outputs": [
+            {
+                "name": "",
+                "type": "uint256",
+                "internalType": "uint256"
+            }
+        ],
+        "stateMutability": "view"
+    },
+    {
+        "type": "function",
+        "name": "s_amountMintPerCollection",
+        "inputs": [
+            {
+                "name": "user",
+                "type": "address",
+                "internalType": "address"
+            },
+            {
+                "name": "collection",
+                "type": "address",
+                "internalType": "address"
+            }
+        ],
+        "outputs": [
+            {
+                "name": "amount",
+                "type": "uint256",
+                "internalType": "uint256"
+            }
+        ],
+        "stateMutability": "view"
+    },
+    {
+        "type": "function",
+        "name": "s_communityMintprice",
         "inputs": [],
         "outputs": [
             {
@@ -1216,6 +1439,19 @@ export const GameEngineABI = [
     },
     {
         "type": "function",
+        "name": "s_invitedNftIds",
+        "inputs": [],
+        "outputs": [
+            {
+                "name": "",
+                "type": "uint256",
+                "internalType": "uint256"
+            }
+        ],
+        "stateMutability": "view"
+    },
+    {
+        "type": "function",
         "name": "s_isConfigured",
         "inputs": [],
         "outputs": [
@@ -1249,6 +1485,38 @@ export const GameEngineABI = [
                 "name": "",
                 "type": "uint64",
                 "internalType": "uint64"
+            }
+        ],
+        "stateMutability": "view"
+    },
+    {
+        "type": "function",
+        "name": "s_normalMintAmount",
+        "inputs": [
+            {
+                "name": "minter",
+                "type": "address",
+                "internalType": "address"
+            }
+        ],
+        "outputs": [
+            {
+                "name": "mintedAmount",
+                "type": "uint256",
+                "internalType": "uint256"
+            }
+        ],
+        "stateMutability": "view"
+    },
+    {
+        "type": "function",
+        "name": "s_preMintEnd",
+        "inputs": [],
+        "outputs": [
+            {
+                "name": "",
+                "type": "bool",
+                "internalType": "bool"
             }
         ],
         "stateMutability": "view"
@@ -1483,6 +1751,19 @@ export const GameEngineABI = [
     },
     {
         "type": "event",
+        "name": "EndPreMintPhase",
+        "inputs": [
+            {
+                "name": "time",
+                "type": "uint256",
+                "indexed": false,
+                "internalType": "uint256"
+            }
+        ],
+        "anonymous": false
+    },
+    {
+        "type": "event",
         "name": "GameStarted",
         "inputs": [
             {
@@ -1546,6 +1827,11 @@ export const GameEngineABI = [
     },
     {
         "type": "error",
+        "name": "GameEngine__AlreadyAllowed",
+        "inputs": []
+    },
+    {
+        "type": "error",
         "name": "GameEngine__AlreadyConfigured",
         "inputs": []
     },
@@ -1566,7 +1852,17 @@ export const GameEngineABI = [
     },
     {
         "type": "error",
+        "name": "GameEngine__CommunityMintNotAllowed",
+        "inputs": []
+    },
+    {
+        "type": "error",
         "name": "GameEngine__Dead",
+        "inputs": []
+    },
+    {
+        "type": "error",
+        "name": "GameEngine__InvalidMaxPerWalletAmount",
         "inputs": []
     },
     {
@@ -1591,12 +1887,27 @@ export const GameEngineABI = [
     },
     {
         "type": "error",
+        "name": "GameEngine__MaxSupplyForInviteExceeded",
+        "inputs": []
+    },
+    {
+        "type": "error",
         "name": "GameEngine__MintClosed",
         "inputs": []
     },
     {
         "type": "error",
         "name": "GameEngine__NoConfigurationToStart",
+        "inputs": []
+    },
+    {
+        "type": "error",
+        "name": "GameEngine__NormalMintNotAllowed",
+        "inputs": []
+    },
+    {
+        "type": "error",
+        "name": "GameEngine__NotCommunityHolder",
         "inputs": []
     },
     {
@@ -1622,6 +1933,11 @@ export const GameEngineABI = [
     {
         "type": "error",
         "name": "GameEngine__OnCooldown",
+        "inputs": []
+    },
+    {
+        "type": "error",
+        "name": "GameEngine__PreMintPhaseEnded",
         "inputs": []
     },
     {
@@ -2130,6 +2446,11 @@ export const NftABI = [
                 "name": "to",
                 "type": "address",
                 "internalType": "address"
+            },
+            {
+                "name": "amount",
+                "type": "uint256",
+                "internalType": "uint256"
             }
         ],
         "outputs": [],

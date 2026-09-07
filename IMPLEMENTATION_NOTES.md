@@ -1,98 +1,65 @@
-# Gluttons Frontend V2 — Carlos Handoff
+# Gluttons Frontend V2.3 — Wallet Mint Counter Integration Notes
 
-## What changed
+## Authority
+This build follows the latest reviewed Frontend Integration Manual, including the public `s_normalMintAmount` and `s_amountMintPerCollection` mappings.
 
-### 1. Real wallet inventory
-`/my-gluttons` no longer contains sample token IDs or sample Glutton cards.
+## Website lifecycle
+1. `awareness` → teaser only.
+2. `mint` + `s_preMintEnd=false` → Community Pre-Mint.
+3. `mint` + `s_preMintEnd=true` → Public Mint.
+4. `s_gameStart>0` → Live Stadium + My Gluttons.
 
-The collection is ERC721A/ERC721AC and is not enumerable, so the frontend discovers a connected wallet's actual tokens by multicalling `GluttonNFT.ownerOf(tokenId)` from `1..GameEngine.s_totalMinted()`, then hydrates only owned token IDs with:
+## Mint counters
 
-- `Inspector.getTokenView(tokenId)` — canonical player-facing state
-- `GameEngine.s_tokenStates(tokenId)` — cooldown / FAST / Final Bite / fridge internals required for legal-action UX
-- `GluttonNFT.tokenURI(tokenId)` — state-aware metadata/image
+### Public Mint
+The frontend reads:
 
-Burned IDs are ignored because ownerOf reverts for them.
-
-### 2. Website stages
-Set `NEXT_PUBLIC_SITE_STAGE` in `.env.local`:
-
-- `awareness`: teaser only. Follow X + paste wallet. No wallet connect, Mint, Rules, or My Gluttons nav.
-- `mint`: Mint + Rules. Artwork remains pre-reveal. My Gluttons is inaccessible.
-- `auto`: awareness until `NEXT_PUBLIC_MINT_UI_OPEN_AT`, then mint.
-
-**Onchain Game Start always overrides the marketing stage.** Once `s_gameStart > 0`, `/` becomes the Live Stadium and My Gluttons unlocks.
-
-Sellout starts the supplied GameEngine automatically. If the immutable `i_startBackstop` is reached first, the Mint screen exposes `START GAME`, which calls the supplied permissionless `ensureStarted()`.
-
-There is intentionally no frontend-only force-start button. If Curtis testing needs an earlier start and the deployed backstop is still in the future, redeploy the test GameEngine with a nearer test backstop rather than bypassing the contract rule in UI.
-
-### 3. Pre-reveal asset
-Replace exactly:
-
-`public/art/pre-reveal.png`
-
-The component is `src/components/PreRevealArt.tsx` and the path is centralized in `src/lib/constants.ts -> ASSETS.preReveal`.
-
-### 4. KEEP FRESH
-The Solidity function remains `powerFridge(tokenId)`. Player-facing copy is now **KEEP FRESH** / **FRIDGE ON**.
-
-The UI explains the actual supplied mechanic: the refrigerator powers the Fresh corpse for 24 real hours and slows spoilage 4x. Contract function names are not exposed as product language.
-
-### 5. Awareness wallet capture
-`POST /api/register` validates an EVM address. For production, configure one backend:
-
-**Webhook**
-- `REGISTRATION_WEBHOOK_URL`
-- optional `REGISTRATION_WEBHOOK_BEARER`
-
-or **Supabase**
-- `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
-
-The local NDJSON fallback is development-only and is not durable on serverless deployments.
-
-The "follow complete" step is explicitly an acknowledgement, not a fake X API verification. Add OAuth/X verification later only if the project gets approved API access.
-
-### 6. Visual FX
-The global FX layer adds active CRT scanlines, noise/vignette, falling code, idle title glitches, text scramble, rotating/weight-changing words, blinking timers, chain heartbeat, scroll reveal, marquee movement and optional Web Audio UI bleeps.
-
-Sound is OFF by default due browser autoplay policy. `SND ON` enables it after a user gesture.
-
-`prefers-reduced-motion` is respected.
-
-### 7. Community route remains isolated
-`/communities` is not in the main navigation. Its allocation-critical values are read from `CommunityMintController`.
-
-The repository deliberately does **not** invent a Merkle leaf/hash convention for CSV lists because that exact convention was not specified in the supplied controller handoff. Reconcile `COMMUNITY_CONTROLLER_ABI` and the proof-builder/API with Carlos's final deployed controller before enabling wallet-list publishing in production.
-
-## First run
-
-Keep the existing working contract addresses from the previous `.env.local`, then add the new stage/registration variables from `.env.example`.
-
-```bash
-rm -rf node_modules .next package-lock.json
-npm install
-npm run check
-npm run dev
+```solidity
+s_normalMintAmount(wallet)
 ```
 
-Then, before deployment:
+and displays `used / 4`, remaining allowance, and a progress bar. The quantity control is capped to the wallet's remaining public allowance and remaining collection supply.
 
-```bash
-npm run build
+### Community Pre-Mint
+For every invited collection the frontend reads:
+
+```solidity
+s_amountMintPerCollection(wallet, collectionAddress)
 ```
 
-## Curtis test checklist
+and displays `used / maxPerWallet`. The transaction quantity is capped to:
 
-1. `NEXT_PUBLIC_SITE_STAGE=awareness` -> no Connect Wallet, no Mint/Rules/My Gluttons nav.
-2. `NEXT_PUBLIC_SITE_STAGE=mint` -> pre-reveal only; mint transaction succeeds; minted count increments from GameEngine.
-3. Reach sellout OR immutable backstop + click `START GAME` -> `s_gameStart` becomes nonzero.
-4. Home automatically changes to Live Stadium without changing env.
-5. Connect a wallet that minted -> My Gluttons shows only its actual token IDs.
-6. tokenURI metadata resolves to the actual alive/corpse art; if it does not, inspect the URI/gateway before blaming ownership discovery.
-7. Feed/FAST/Poison buttons operate on selected owned token IDs.
-8. A logical corpse that has not been materialized first offers `REGISTER CORPSE / REAP`; then Eat/Keep Fresh become available.
-9. `KEEP FRESH` calls `powerFridge` and shows fridge countdown.
-10. Plague exposes Devour only when phase permits it.
-11. Last Supper exposes Truce only according to deployed contract behavior.
-12. Settled state exposes PrizeVault `claimPrize`.
+```text
+min(
+  wallet community allowance remaining,
+  community allocation remaining,
+  global Glutton supply remaining
+)
+```
+
+Holder status is still previewed with the invited NFT's `balanceOf(wallet)`. GameEngine independently re-verifies holder ownership and all mint counters at execution.
+
+## Important distinction
+Community Pre-Mint usage and Public Mint usage are separate mappings in the current GameEngine. Therefore a Community Pre-Mint does not visually reduce the `YOUR PUBLIC MINTS X / 4` counter unless the Solidity contract is changed to make those caps shared.
+
+## Gameplay integration
+- Canonical card state: Inspector `getTokenView(tokenId)`.
+- FAST / Final Bite / cooldown / fridge timer / Reap data: `s_tokenStates(tokenId)`.
+- Artwork: `tokenURI(tokenId)`.
+- Fresh/Rotten: Inspector `visualState`, already reconciled with refrigerated spoilage.
+- `powerFridge(tokenId)` remains **KEEP FRESH** in player-facing UI.
+
+## Curtis test order
+1. Deploy the latest contracts and update `.env.local` addresses.
+2. Set `NEXT_PUBLIC_SITE_STAGE=mint`.
+3. Add + activate an invited collection at `/communities`.
+4. Connect an eligible wallet and confirm Community UI begins at `0 / maxPerWallet`.
+5. Pre-Mint 1; wait for confirmation/refetch; confirm counter becomes `1 / maxPerWallet`.
+6. Reload the page; confirm the same counter persists from chain state.
+7. Reach the wallet Community cap; confirm quantity is capped and the button becomes `COMMUNITY MINT LIMIT USED`.
+8. End Pre-Mint and confirm automatic Public Mint switch.
+9. Confirm Public counter starts from `s_normalMintAmount(wallet)` rather than NFT balance.
+10. Public mint 1–4 and confirm `YOUR PUBLIC MINTS` updates after each transaction.
+11. Reach `4 / 4`; confirm the UI blocks further Public Mints before signing.
+12. Confirm a wallet with prior Community Pre-Mints still receives the separate Public counter defined by the contract.
+13. Continue Game Start / Live Stadium / My Gluttons gameplay tests.

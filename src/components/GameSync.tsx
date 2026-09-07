@@ -12,7 +12,17 @@ export function GameSync() {
   const r = useReadContracts({
     contracts: [
       { address: CONTRACTS.inspector, abi: INSPECTOR_ABI, functionName: 'getGlobalView' },
-      engineRead('s_totalMinted'), engineRead('s_gameStart'), engineRead('S'), engineRead('s_totalNormalFeeds'), engineRead('s_completedBars'), engineRead('i_startBackstop'), engineRead('s_aliveCount'), engineRead('s_currentMealSeconds'), engineRead('isSettled'),
+      engineRead('s_totalMinted'),       // 1
+      engineRead('s_gameStart'),         // 2
+      engineRead('S'),                   // 3
+      engineRead('s_totalNormalFeeds'),  // 4
+      engineRead('s_completedBars'),     // 5
+      engineRead('i_startBackstop'),     // 6
+      engineRead('s_aliveCount'),        // 7
+      engineRead('s_currentMealSeconds'),// 8
+      engineRead('isSettled'),           // 9
+      engineRead('s_preMintEnd'),        // 10
+      engineRead('s_communityMintprice'),// 11
     ] as any,
     allowFailure: true,
     query: { enabled, refetchInterval: 5000 },
@@ -24,11 +34,22 @@ export function GameSync() {
     const alive = g?.aliveCount ?? get(7) ?? 0n;
     const meal = g?.currentMealSeconds ?? get(8) ?? 86400n;
     const settled = g?.isSettled ?? get(9) ?? false;
-    const phase = g?.currentPhase ?? (get(2) && BigInt(get(2)) > 0n ? 'FEAST' : 'PRE_GAME');
+    const gameStart = BigInt(get(2) ?? 0n);
+    const phase = g?.currentPhase ?? (gameStart > 0n ? 'FEAST' : 'PRE_GAME');
     set({
-      aliveCount: BigInt(alive), currentMealSeconds: BigInt(meal), isSettled: Boolean(settled), currentPhase: String(phase),
-      totalMinted: BigInt(get(1) ?? 0n), gameStart: BigInt(get(2) ?? 0n), startingPopulation: BigInt(get(3) ?? 0n),
-      totalNormalFeeds: BigInt(get(4) ?? 0n), completedBars: BigInt(get(5) ?? 0n), startBackstop: BigInt(get(6) ?? 0n), synced: true,
+      aliveCount: BigInt(alive),
+      currentMealSeconds: BigInt(meal),
+      isSettled: Boolean(settled),
+      currentPhase: String(phase),
+      totalMinted: BigInt(get(1) ?? 0n),
+      gameStart,
+      startingPopulation: BigInt(get(3) ?? 0n),
+      totalNormalFeeds: BigInt(get(4) ?? 0n),
+      completedBars: BigInt(get(5) ?? 0n),
+      startBackstop: BigInt(get(6) ?? 0n),
+      preMintEnd: Boolean(get(10) ?? false),
+      communityMintPrice: BigInt(get(11) ?? 4_000_000_000_000_000n),
+      synced: true,
     });
   }, [r.data, set]);
   return null;

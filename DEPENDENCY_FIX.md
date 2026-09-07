@@ -25,3 +25,33 @@ Do **not** run `npm audit fix --force` as a first step. It can replace major ver
 ## About npm deprecation warnings
 
 Some warnings can still appear from transitive wallet-connector dependencies. They are not imports written by the Gluttons app itself. The important requirement is that the dependency graph resolves, `npm run check` passes, and `npm run build` succeeds before deployment.
+
+## V2.3.1 — CDP x402 SVM build fix
+
+If Next.js fails with:
+
+```text
+Module not found: Can't resolve '@x402/svm/exact/client'
+```
+
+this comes from the transitive Coinbase CDP/Base connector included in the Wagmi/RainbowKit connector graph. Coinbase CDP declares the x402 chain packages as optional peer dependencies, but webpack still has to resolve modules referenced by the connector bundle during a production build.
+
+V2.3.1 pins the complete x402 peer set used by the CDP package line in this project:
+
+```json
+"@x402/core": "2.24.0",
+"@x402/evm": "2.24.0",
+"@x402/svm": "2.24.0",
+"@x402/extensions": "2.24.0"
+```
+
+After replacing the project, reinstall cleanly:
+
+```bash
+rm -rf node_modules .next package-lock.json
+npm install
+npm run check
+npm run build
+```
+
+Do not run `npm audit fix --force` before the production build passes, because it can rewrite the wallet dependency graph.

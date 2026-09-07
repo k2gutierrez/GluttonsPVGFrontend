@@ -19,6 +19,7 @@ export type GluttonToken = {
   poisonProtectedUntil: number;
   finalBiteDeadline: number;
   deadAt: number;
+  spoilCheckpoint: number;
   poweredUntil: number;
   spoilQ4: number;
   fasting: boolean;
@@ -27,6 +28,13 @@ export type GluttonToken = {
 
 const chunks = <T,>(a: T[], n: number) => Array.from({ length: Math.ceil(a.length / n) }, (_, i) => a.slice(i * n, (i + 1) * n));
 const okResult = (r: any) => r?.status === 'success' ? r.result : undefined;
+
+// Reviewed contract lock: GameEngine.getVisualState() now applies the same
+// refrigerated spoilage math used by gameplay. Inspector visualState is therefore
+// the canonical frontend Fresh/Rotten source — do not re-implement spoilage here.
+export function isGameplayFresh(t: GluttonToken) {
+  return t.visualState === 2;
+}
 
 export function statusOf(t: GluttonToken, now = Math.floor(Date.now() / 1000)) {
   if (t.visualState === 2) return 'FRESH';
@@ -96,6 +104,7 @@ export function useOwnedGluttons() {
               poisonProtectedUntil: Number(arr[2] || 0),
               finalBiteDeadline: Number(arr[3] || 0),
               deadAt: Number(arr[4] || 0),
+              spoilCheckpoint: Number(arr[5] || 0),
               poweredUntil: Number(arr[6] || 0),
               spoilQ4: Number(arr[7] || 0),
               fasting: Boolean(arr[8]),

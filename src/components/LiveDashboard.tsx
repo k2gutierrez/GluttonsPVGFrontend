@@ -1,10 +1,10 @@
 'use client';
 import Link from 'next/link';
 import { useAtomValue } from 'jotai';
-import { useBalance, useBlockNumber } from 'wagmi';
-import { formatEther } from 'viem';
+import { useBalance, useBlockNumber, useReadContract } from 'wagmi';
+import { formatEther, type Address } from 'viem';
 import { protocolAtom } from '@/state/game';
-import { CONTRACTS, MAX_SUPPLY, NATIVE_SYMBOL, PRIZE_VAULT_ABI, ROYALTY_TREASURY_ABI } from '@/lib/constants';
+import { CONTRACTS, ERC20_ABI, MAX_SUPPLY, NATIVE_SYMBOL, PRIZE_VAULT_ABI, ROYALTY_TREASURY_ABI, ZERO_ADDRESS } from '@/lib/constants';
 import { Panel, Kicker } from './Terminal';
 import { Header } from './Header';
 import { TxButton } from './TxButton';
@@ -13,8 +13,12 @@ import { MorphTicker, Scramble, WeightWord } from '@/components/fx/RetroText';
 const pct = (n: number, d: number) => d ? Math.max(0, Math.min(100, n / d * 100)) : 0;
 export function LiveDashboard() {
   const p = useAtomValue(protocolAtom); const pot = useBalance({ address: CONTRACTS.prizeVault, query: { refetchInterval: 5000 } }); const block = useBlockNumber({ watch: true });
+  const wethAddressR = useReadContract({ address: CONTRACTS.prizeVault, abi: PRIZE_VAULT_ABI, functionName: 'getWethAddress', query: { enabled: CONTRACTS.prizeVault !== ZERO_ADDRESS } });
+  const wethAddress = (wethAddressR.data || ZERO_ADDRESS) as Address;
+  const wethPot = useReadContract({ address: wethAddress, abi: ERC20_ABI, functionName: 'balanceOf', args: [CONTRACTS.prizeVault], query: { enabled: wethAddress !== ZERO_ADDRESS, refetchInterval: 5000 } });
   const minted = Number(p.totalMinted || BigInt(MAX_SUPPLY)); const S = Number(p.startingPopulation || p.totalMinted); const alive = Number(p.aliveCount); const meal = Number(p.currentMealSeconds) / 3600; const bars = Number(p.completedBars);
-  const potValue = pot.data ? Number(formatEther(pot.data.value)).toLocaleString(undefined, { maximumFractionDigits: 4 }) : '—';
+  const totalPotWei = (pot.data?.value || 0n) + BigInt(wethPot.data || 0n);
+  const potValue = pot.data || wethPot.data !== undefined ? Number(formatEther(totalPotWei)).toLocaleString(undefined, { maximumFractionDigits: 4 }) : '—';
   const phase = p.isSettled ? 'SETTLED' : p.currentPhase; const next = phase === 'FEAST' ? `PLAGUE ≤ ${Math.ceil(S * .5)} ALIVE OR +2H MEAL` : phase === 'PLAGUE' ? `LAST SUPPER ≤ ${Math.ceil(S * .025)} ALIVE / DAY 120` : phase === 'LAST_SUPPER' ? 'TRUCE / ONE SURVIVOR' : 'VERDICT';
   return <><Header/><main className="page-shell live-page">
     <div className="ambient-word ambient-a"><WeightWord word="HUNGER"/></div>
@@ -25,7 +29,7 @@ export function LiveDashboard() {
     <div className="state-grid">
       <Metric title="MINTED" value={`${minted.toLocaleString()} / ${MAX_SUPPLY}`} bar={pct(minted, MAX_SUPPLY)}/>
       <Metric title="ALIVE" value={`${alive.toLocaleString()} / ${S || minted}`} bar={pct(alive, S || minted)}/>
-      <Metric title="THE POT" value={`${potValue} ${NATIVE_SYMBOL}`} pulse/>
+      <Metric title="THE POT" value={`${potValue} ${NATIVE_SYMBOL}`} sub="ETH + WETH IN PRIZE VAULT" pulse/>
       <Metric title="CURRENT MEAL" value={`+${meal.toFixed(2)}H`} bar={pct(meal, 24)}/>
       <Metric title="METABOLISM" value={`BAR ${bars}`} sub={`${p.totalNormalFeeds.toLocaleString()} VALID FEEDS`}/>
       <Metric title="NEXT" value={next} small/>

@@ -16,7 +16,7 @@ export function Header({ isolated = false }: { isolated?: boolean }) {
       {stage === 'mint' ? <><Link href="/">MINT</Link><Link href="/rules">RULES</Link></> : <><Link href="/">LIVE</Link><Link href="/my-gluttons">MY GLUTTONS</Link><Link href="/rules">RULES</Link><a href={SITE.openSeaUrl} target="_blank">OPENSEA ↗</a></>}
     </nav>}
     <div className="ml-auto flex items-center gap-3">
-      <span className="hidden text-[9px] uppercase tracking-[.18em] text-zinc-600 lg:block">CURTIS / {stage === 'awareness' ? 'PRE-MINT_SIGNAL' : stage === 'mint' ? 'MINT_OPEN' : p.currentPhase}</span>
+      <span className="hidden text-[9px] uppercase tracking-[.18em] text-zinc-600 lg:block">CURTIS / {stage === 'awareness' ? 'PRE-MINT_SIGNAL' : stage === 'mint' ? (p.preMintEnd ? 'PUBLIC_MINT' : 'COMMUNITY_PRE_MINT') : p.currentPhase}</span>
       <button data-fx-sound onClick={fx.toggleSound} className="sound-toggle" aria-label="Toggle interface sound">SND {fx.sound ? 'ON' : 'OFF'}</button>
       {stage !== 'awareness' && <ConnectButton chainStatus="icon" accountStatus="address" showBalance={false}/>} 
     </div>

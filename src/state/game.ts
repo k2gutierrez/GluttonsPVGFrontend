@@ -11,6 +11,8 @@ export type ProtocolView = {
   totalNormalFeeds: bigint;
   completedBars: bigint;
   startBackstop: bigint;
+  preMintEnd: boolean;
+  communityMintPrice: bigint;
   synced: boolean;
 };
 
@@ -25,5 +27,7 @@ export const protocolAtom = atom<ProtocolView>({
   totalNormalFeeds: 0n,
   completedBars: 0n,
   startBackstop: 0n,
+  preMintEnd: false,
+  communityMintPrice: 4_000_000_000_000_000n,
   synced: false,
 });
