@@ -51,7 +51,7 @@ Community Pre-Mint usage and Public Mint usage are separate mappings in the curr
 
 ## Curtis test order
 1. Deploy the latest contracts and update `.env.local` addresses.
-2. Set `NEXT_PUBLIC_SITE_STAGE=mint`.
+2. Set `NEXT_PUBLIC_SITE_STAGE=mint`. changed form awareness
 3. Add + activate an invited collection at `/communities`.
 4. Connect an eligible wallet and confirm Community UI begins at `0 / maxPerWallet`.
 5. Pre-Mint 1; wait for confirmation/refetch; confirm counter becomes `1 / maxPerWallet`.
