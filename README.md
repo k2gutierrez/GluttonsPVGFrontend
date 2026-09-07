@@ -117,3 +117,16 @@ npm run build
 ```
 
 See `BLUEPRINT_DELTA_V2.3.md` and `IMPLEMENTATION_NOTES.md` for the exact contract/frontend delta and Curtis test plan.
+
+## V2.4 — Curtis-safe inventory pagination + public Inspector
+
+- `My Gluttons` no longer scans/hydrates the entire 1..2000 supply in one hook pass.
+- Inventory discovery uses 50-token ID pages (`INVENTORY_PAGE_SIZE = 50`) and loads the next page when the pagination sentinel approaches the viewport; a manual `LOAD NEXT 50` fallback remains visible.
+- The exact wallet NFT balance is read with `GluttonNFT.balanceOf(address)` so the UI can show `WALLET / LOADED / SCANNED` without pretending the partially loaded state counts are complete.
+- All Curtis multicalls use `deployless: true`; individual `/inspect` reads use `readContract` and do not need multicall.
+- `/inspect` is now a real public route and the Live Dashboard INSPECT link points to it.
+- `My Gluttons` has `FULL INSPECT` per token; `SYNC METADATA` remains a separate action.
+- TxButton React 19 type fix included: `useRef<string | undefined>(undefined)`.
+- Final-table scanning was reduced from 200-token calls to 50-token calls as an additional Curtis RPC safety measure.
+
+For a stress-test wallet holding all 2,000 Gluttons, the expected behavior is: load 50 -> render -> scroll -> load next 50, rather than issuing one 2,000-token RPC payload.

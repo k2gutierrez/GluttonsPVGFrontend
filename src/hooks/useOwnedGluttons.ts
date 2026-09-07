@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAccount, usePublicClient } from 'wagmi';
 import { useAtomValue } from 'jotai';
 import type { Address } from 'viem';
@@ -26,12 +26,15 @@ export type GluttonToken = {
   deathSettled: boolean;
 };
 
-const chunks = <T,>(a: T[], n: number) => Array.from({ length: Math.ceil(a.length / n) }, (_, i) => a.slice(i * n, (i + 1) * n));
+// Keep every RPC payload deliberately small. A 2,000-token wallet is a valid
+// stress-test case on Curtis, so inventory discovery is progressive rather than
+// one giant multicall.
+export const INVENTORY_PAGE_SIZE = 50;
 const okResult = (r: any) => r?.status === 'success' ? r.result : undefined;
 
-// Reviewed contract lock: GameEngine.getVisualState() now applies the same
-// refrigerated spoilage math used by gameplay. Inspector visualState is therefore
-// the canonical frontend Fresh/Rotten source — do not re-implement spoilage here.
+// Reviewed contract lock: GameEngine.getVisualState() applies the same
+// refrigerated spoilage math used by gameplay. Inspector visualState is the
+// canonical frontend Fresh/Rotten source — do not re-implement spoilage here.
 export function isGameplayFresh(t: GluttonToken) {
   return t.visualState === 2;
 }
@@ -50,77 +53,215 @@ export function useOwnedGluttons() {
   const client = usePublicClient();
   const p = useAtomValue(protocolAtom);
   const [tokens, setTokens] = useState<GluttonToken[]>([]);
+  const [walletBalance, setWalletBalance] = useState(0);
+  const [scannedCount, setScannedCount] = useState(0);
+  const [nextTokenId, setNextTokenId] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [nonce, setNonce] = useState(0);
-  const refresh = useCallback(() => setNonce(x => x + 1), []);
+  const requestLock = useRef(false);
+  const sessionRef = useRef(0);
+
+  const totalMinted = Math.min(Number(p.totalMinted), 2000);
+  const hasMore = nextTokenId <= totalMinted;
+
+  const hydrateIds = useCallback(async (ids: number[]) => {
+    if (!client || ids.length === 0) return [] as GluttonToken[];
+
+    // At most 50 contracts per multicall. deployless avoids relying on a
+    // Multicall3 deployment in the custom Curtis chain definition.
+    const [views, states, uris] = await Promise.all([
+      client.multicall({
+        allowFailure: true,
+        deployless: true,
+        contracts: ids.map(id => ({ address: CONTRACTS.inspector, abi: INSPECTOR_ABI, functionName: 'getTokenView', args: [BigInt(id)] })) as any,
+      }),
+      client.multicall({
+        allowFailure: true,
+        deployless: true,
+        contracts: ids.map(id => ({ address: CONTRACTS.gameEngine, abi: GAME_ENGINE_ABI, functionName: 's_tokenStates', args: [BigInt(id)] })) as any,
+      }),
+      client.multicall({
+        allowFailure: true,
+        deployless: true,
+        contracts: ids.map(id => ({ address: CONTRACTS.gluttonNFT, abi: GLUTTON_NFT_ABI, functionName: 'tokenURI', args: [BigInt(id)] })) as any,
+      }),
+    ]);
+
+    const raw: GluttonToken[] = [];
+    ids.forEach((id, i) => {
+      const v: any = okResult(views[i]);
+      const s: any = okResult(states[i]);
+      const uri = String(okResult(uris[i]) || '');
+      if (!v) return; // burned/nonexistent IDs are ignored
+      const arr = Array.isArray(s) ? s : [];
+      raw.push({
+        id,
+        owner: v.owner as Address,
+        visualState: Number(v.visualState),
+        expiry: Number(v.expiry),
+        isHungry: Boolean(v.isHungry),
+        tokenUri: uri,
+        image: '',
+        poisonCooldownUntil: Number(arr[1] || 0),
+        poisonProtectedUntil: Number(arr[2] || 0),
+        finalBiteDeadline: Number(arr[3] || 0),
+        deadAt: Number(arr[4] || 0),
+        spoilCheckpoint: Number(arr[5] || 0),
+        poweredUntil: Number(arr[6] || 0),
+        spoilQ4: Number(arr[7] || 0),
+        fasting: Boolean(arr[8]),
+        deathSettled: Boolean(arr[9]),
+      });
+    });
+
+    return Promise.all(raw.map(async t => ({ ...t, image: await metadataImage(t.tokenUri, t.visualState) })));
+  }, [client]);
+
+  const scanPage = useCallback(async (startId: number, session = sessionRef.current) => {
+    if (!client || !address || requestLock.current || totalMinted === 0) return;
+    if (startId > totalMinted) return;
+
+    requestLock.current = true;
+    const isFirst = startId === 1 && scannedCount === 0;
+    if (isFirst) setLoading(true); else setLoadingMore(true);
+    setError(null);
+
+    try {
+      const endId = Math.min(totalMinted, startId + INVENTORY_PAGE_SIZE - 1);
+      const ids = Array.from({ length: endId - startId + 1 }, (_, i) => startId + i);
+
+      const owners = await client.multicall({
+        allowFailure: true,
+        deployless: true,
+        contracts: ids.map(id => ({ address: CONTRACTS.gluttonNFT, abi: GLUTTON_NFT_ABI, functionName: 'ownerOf', args: [BigInt(id)] })) as any,
+      });
+
+      if (session !== sessionRef.current) return;
+
+      const ownedIds: number[] = [];
+      owners.forEach((r: any, i) => {
+        const owner = okResult(r) as Address | undefined;
+        if (owner && owner.toLowerCase() === address.toLowerCase()) ownedIds.push(ids[i]);
+      });
+
+      const hydrated = await hydrateIds(ownedIds);
+      if (session !== sessionRef.current) return;
+
+      setTokens(prev => {
+        const map = new Map(prev.map(t => [t.id, t]));
+        hydrated.forEach(t => map.set(t.id, t));
+        return [...map.values()].sort((a, b) => a.id - b.id);
+      });
+      setScannedCount(endId);
+      setNextTokenId(endId + 1);
+    } catch (e: any) {
+      if (session === sessionRef.current) setError(e?.shortMessage || e?.message || 'Could not load wallet inventory page.');
+    } finally {
+      requestLock.current = false;
+      if (session === sessionRef.current) {
+        setLoading(false);
+        setLoadingMore(false);
+      }
+    }
+  }, [client, address, totalMinted, scannedCount, hydrateIds]);
+
+  const loadMore = useCallback(async () => {
+    if (!hasMore || loading || loadingMore) return;
+    await scanPage(nextTokenId);
+  }, [hasMore, loading, loadingMore, scanPage, nextTokenId]);
+
+  // Refresh only the inventory already discovered. This keeps a player who has
+  // scrolled deep into a large wallet from being thrown back to token #1 after
+  // Feed / Poison / Reap / Fridge confirms.
+  const refresh = useCallback(async () => {
+    if (!client || !address || tokens.length === 0 || refreshing) return;
+    setRefreshing(true);
+    setError(null);
+    try {
+      const updated: GluttonToken[] = [];
+      for (let i = 0; i < tokens.length; i += INVENTORY_PAGE_SIZE) {
+        const batch = tokens.slice(i, i + INVENTORY_PAGE_SIZE).map(t => t.id);
+        const hydrated = await hydrateIds(batch);
+        // getTokenView includes ownerOf; only keep tokens still owned by wallet.
+        hydrated.forEach(t => {
+          if (t.owner.toLowerCase() === address.toLowerCase()) updated.push(t);
+        });
+      }
+      setTokens(updated.sort((a, b) => a.id - b.id));
+      const balance = await client.readContract({ address: CONTRACTS.gluttonNFT, abi: GLUTTON_NFT_ABI, functionName: 'balanceOf', args: [address] });
+      setWalletBalance(Number(balance));
+    } catch (e: any) {
+      setError(e?.shortMessage || e?.message || 'Could not refresh loaded positions.');
+    } finally {
+      setRefreshing(false);
+    }
+  }, [client, address, tokens, refreshing, hydrateIds]);
+
+  const rescan = useCallback(async () => {
+    if (!client || !address) return;
+    const session = ++sessionRef.current;
+    setTokens([]);
+    setScannedCount(0);
+    setNextTokenId(1);
+    setError(null);
+    requestLock.current = false;
+    try {
+      const balance = await client.readContract({ address: CONTRACTS.gluttonNFT, abi: GLUTTON_NFT_ABI, functionName: 'balanceOf', args: [address] });
+      if (session !== sessionRef.current) return;
+      setWalletBalance(Number(balance));
+      if (Number(balance) > 0 && totalMinted > 0) await scanPage(1, session);
+    } catch (e: any) {
+      if (session === sessionRef.current) setError(e?.shortMessage || e?.message || 'Could not start inventory scan.');
+    }
+  }, [client, address, totalMinted, scanPage]);
 
   useEffect(() => {
-    let cancelled = false;
-    async function run() {
-      if (!client || !address || CONTRACTS.gluttonNFT === ZERO_ADDRESS || CONTRACTS.inspector === ZERO_ADDRESS || p.totalMinted === 0n) {
-        setTokens([]); return;
-      }
-      setLoading(true); setError(null);
-      try {
-        const total = Math.min(Number(p.totalMinted), 2000);
-        const ids = Array.from({ length: total }, (_, i) => i + 1);
-        const owned: number[] = [];
-        // ERC721A/721AC is not ERC721Enumerable. Scan ownerOf in multicall batches.
-        // Burned IDs revert and are safely ignored with allowFailure.
-        for (const batch of chunks(ids, 250)) {
-          const res = await client.multicall({
-            allowFailure: true,
-            contracts: batch.map(id => ({ address: CONTRACTS.gluttonNFT, abi: GLUTTON_NFT_ABI, functionName: 'ownerOf', args: [BigInt(id)] })) as any,
-          });
-          res.forEach((r: any, i) => {
-            const owner = okResult(r) as Address | undefined;
-            if (owner && owner.toLowerCase() === address.toLowerCase()) owned.push(batch[i]);
-          });
-        }
-        if (cancelled) return;
-        const raw: GluttonToken[] = [];
-        for (const batch of chunks(owned, 100)) {
-          const [views, states, uris] = await Promise.all([
-            client.multicall({ allowFailure: true, contracts: batch.map(id => ({ address: CONTRACTS.inspector, abi: INSPECTOR_ABI, functionName: 'getTokenView', args: [BigInt(id)] })) as any }),
-            client.multicall({ allowFailure: true, contracts: batch.map(id => ({ address: CONTRACTS.gameEngine, abi: GAME_ENGINE_ABI, functionName: 's_tokenStates', args: [BigInt(id)] })) as any }),
-            client.multicall({ allowFailure: true, contracts: batch.map(id => ({ address: CONTRACTS.gluttonNFT, abi: GLUTTON_NFT_ABI, functionName: 'tokenURI', args: [BigInt(id)] })) as any }),
-          ]);
-          batch.forEach((id, i) => {
-            const v: any = okResult(views[i]);
-            const s: any = okResult(states[i]);
-            const uri = String(okResult(uris[i]) || '');
-            if (!v) return;
-            const arr = Array.isArray(s) ? s : [];
-            raw.push({
-              id,
-              owner: v.owner as Address,
-              visualState: Number(v.visualState),
-              expiry: Number(v.expiry),
-              isHungry: Boolean(v.isHungry),
-              tokenUri: uri,
-              image: '',
-              poisonCooldownUntil: Number(arr[1] || 0),
-              poisonProtectedUntil: Number(arr[2] || 0),
-              finalBiteDeadline: Number(arr[3] || 0),
-              deadAt: Number(arr[4] || 0),
-              spoilCheckpoint: Number(arr[5] || 0),
-              poweredUntil: Number(arr[6] || 0),
-              spoilQ4: Number(arr[7] || 0),
-              fasting: Boolean(arr[8]),
-              deathSettled: Boolean(arr[9]),
-            });
-          });
-        }
-        const hydrated = await Promise.all(raw.map(async t => ({ ...t, image: await metadataImage(t.tokenUri, t.visualState) })));
-        if (!cancelled) setTokens(hydrated.sort((a, b) => a.id - b.id));
-      } catch (e: any) {
-        if (!cancelled) setError(e?.shortMessage || e?.message || 'Could not load wallet inventory.');
-      } finally { if (!cancelled) setLoading(false); }
-    }
-    run();
-    return () => { cancelled = true; };
-  }, [client, address, p.totalMinted, p.gameStart, nonce]);
+    const session = ++sessionRef.current;
+    requestLock.current = false;
+    setTokens([]);
+    setWalletBalance(0);
+    setScannedCount(0);
+    setNextTokenId(1);
+    setError(null);
 
-  return { tokens, loading, error, refresh, address };
+    async function start() {
+      if (!client || !address || CONTRACTS.gluttonNFT === ZERO_ADDRESS || CONTRACTS.inspector === ZERO_ADDRESS || totalMinted === 0) return;
+      setLoading(true);
+      try {
+        const balance = await client.readContract({ address: CONTRACTS.gluttonNFT, abi: GLUTTON_NFT_ABI, functionName: 'balanceOf', args: [address] });
+        if (session !== sessionRef.current) return;
+        setWalletBalance(Number(balance));
+        if (Number(balance) === 0) return;
+      } catch (e: any) {
+        if (session === sessionRef.current) setError(e?.shortMessage || e?.message || 'Could not read wallet balance.');
+        return;
+      } finally {
+        if (session === sessionRef.current) setLoading(false);
+      }
+      await scanPage(1, session);
+    }
+
+    start();
+    return () => { sessionRef.current++; requestLock.current = false; };
+    // p.gameStart intentionally resets inventory when the protocol crosses reveal.
+  }, [client, address, totalMinted, p.gameStart]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return {
+    tokens,
+    walletBalance,
+    scannedCount,
+    totalMinted,
+    hasMore,
+    pageSize: INVENTORY_PAGE_SIZE,
+    loading,
+    loadingMore,
+    refreshing,
+    error,
+    loadMore,
+    refresh,
+    rescan,
+    address,
+  };
 }

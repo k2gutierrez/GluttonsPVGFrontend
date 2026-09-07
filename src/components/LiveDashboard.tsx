@@ -46,7 +46,7 @@ export function LiveDashboard() {
       </Panel>
       <Panel className="p-5 md:p-7">
         <Kicker>protocol access</Kicker>
-        <div className="live-links"><Link href="/my-gluttons"><span>01</span><b>MY GLUTTONS</b><small>Protect positions. Manage food.</small></Link><Link href="/rules"><span>02</span><b>RULES</b><small>Read the machine.</small></Link><a href="#inspector"><span>03</span><b>INSPECT</b><small>Canonical state by token ID.</small></a></div>
+        <div className="live-links"><Link href="/my-gluttons"><span>01</span><b>MY GLUTTONS</b><small>Protect positions. Manage food.</small></Link><Link href="/rules"><span>02</span><b>RULES</b><small>Read the machine.</small></Link><Link href="/inspect"><span>03</span><b>INSPECT</b><small>Canonical state by token ID.</small></Link></div>
         <div className="mt-5"><TxButton label="FLUSH WETH → POT" address={CONTRACTS.royaltyTreasury} abi={ROYALTY_TREASURY_ABI} functionName="flushWETH" className="w-full secondary-action"/></div>
       </Panel>
     </div>
