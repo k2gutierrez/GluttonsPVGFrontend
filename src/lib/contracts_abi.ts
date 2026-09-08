@@ -12,12 +12,11 @@ export const contracts = {
     inspector: "0x3829838511B01684453b89122F54A0d36865c2eA"
 }
 
-
 const something = [
-    "https://arweave.net/r92txKdo5_Z8wHwjLV511pvYs8TaxcJzM7TWf81Nzb0",
-    "https://arweave.net/F7CTP2tlZZgTBQaPQTHiV64y2TIALFgPA27QpTWV694/",
-    "https://arweave.net/F7CTP2tlZZgTBQaPQTHiV64y2TIALFgPA27QpTWV694/",
-    "https://arweave.net/F7CTP2tlZZgTBQaPQTHiV64y2TIALFgPA27QpTWV694/"
+    "https://arweave.net/r92txKdo5_Z8wHwjLV511pvYs8TaxcJzM7TWf81Nzb0", // pre-reveal
+    "https://arweave.net/F7CTP2tlZZgTBQaPQTHiV64y2TIALFgPA27QpTWV694/", // alive
+    "https://arweave.net/fcrFqPYYwtLx-QUJmTKJFZDMdCN9y9RCc-7h18CSekM", // dead fresh
+    "https://arweave.net/TcDUnMOJWon6HGf7nKJ7UIXQ9OtLvUIcK97VKZzRc6I" // dead rotten
 ]
 
 export const futureRewardsVaultABI = [
