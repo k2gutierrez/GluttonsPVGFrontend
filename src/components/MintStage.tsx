@@ -14,6 +14,7 @@ import { Panel, Kicker } from './Terminal';
 import { PreRevealArt } from './PreRevealArt';
 import { TxButton } from './TxButton';
 import { FlipWord, MorphTicker, Scramble, WeightWord } from '@/components/fx/RetroText';
+import { useLiveStageLatch } from '@/hooks/useLiveStageLatch';
 
 const pct = (n: number, d: number) => d ? Math.max(0, Math.min(100, n / d * 100)) : 0;
 const fmt = (s: number) => { const d = Math.max(0, s); const h = Math.floor(d / 3600); const m = Math.floor((d % 3600) / 60); const x = d % 60; return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(x).padStart(2,'0')}`; };
@@ -44,6 +45,7 @@ function normalizeCommunity(raw: any, id: number): Community {
 
 export function MintStage() {
   const p = useAtomValue(protocolAtom);
+  const verifyLiveStage = useLiveStageLatch();
   const { address } = useAccount();
   const minted = Number(p.totalMinted);
   const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
@@ -120,7 +122,7 @@ export function MintStage() {
         <div className="console-meter"><div className="flex justify-between"><span>MINTED</span><b>{minted.toLocaleString()} / {MAX_SUPPLY.toLocaleString()}</b></div><div className="bar mt-3"><i style={{ width: `${pct(minted, MAX_SUPPLY)}%` }}/></div></div>
         <div className="console-block"><span>GAME START</span>{backstop ? <strong className="countdown-color">{backstopReached ? 'BACKSTOP REACHED' : fmt(remaining)}</strong> : <strong>SELLOUT / BACKSTOP</strong>}<small>Sellout starts automatically. Backstop can be started permissionlessly.</small></div>
         {backstopReached
-          ? <TxButton label="START GAME" address={CONTRACTS.gameEngine} abi={GAME_ENGINE_ABI} functionName="ensureStarted" className="mt-5 w-full danger-pulse"/>
+          ? <TxButton label="START GAME" address={CONTRACTS.gameEngine} abi={GAME_ENGINE_ABI} functionName="ensureStarted" onConfirmed={verifyLiveStage} className="mt-5 w-full danger-pulse"/>
           : p.preMintEnd
             ? <PublicMint/>
             : <CommunityPreMint communities={communities} balanceFor={balanceFor} walletMintedFor={walletCommunityMintedFor} connected={!!address}/>} 
@@ -135,6 +137,7 @@ export function MintStage() {
 
 function PublicMint() {
   const p = useAtomValue(protocolAtom);
+  const verifyLiveStage = useLiveStageLatch();
   const { address } = useAccount();
   const [qty, setQty] = useState(1);
   const walletMintRead = useReadContract({
@@ -166,6 +169,7 @@ function PublicMint() {
       args={[BigInt(qty)]}
       value={MINT_PRICE * BigInt(qty)}
       disabled={!address || maxQty === 0 || qty > maxQty}
+      onConfirmed={verifyLiveStage}
       className="mt-4 w-full"
     />
     <p className="mint-footnote">PUBLIC LIMIT: 4 GLUTTONS MAXIMUM PER WALLET. YOUR COUNTER IS READ DIRECTLY FROM <b>s_normalMintAmount(wallet)</b>. COMMUNITY PRE-MINTS USE A SEPARATE COUNTER.</p>
@@ -174,6 +178,7 @@ function PublicMint() {
 
 function CommunityPreMint({ communities, balanceFor, walletMintedFor, connected }: { communities: Community[]; balanceFor: (id:number)=>bigint; walletMintedFor:(id:number)=>bigint; connected:boolean }) {
   const p = useAtomValue(protocolAtom);
+  const verifyLiveStage = useLiveStageLatch();
   const active = communities.filter(c => c.allowed && c.amountMinted < c.maxTotalAmountAllowed);
   const firstEligible = active.find(c => balanceFor(c.id) > 0n && Number(walletMintedFor(c.id)) < c.maxPerWallet);
   const [selected, setSelected] = useState<number | null>(null);
@@ -217,7 +222,7 @@ function CommunityPreMint({ communities, balanceFor, walletMintedFor, connected 
         <WalletMintCounter label={`YOUR ${c.name} MINTS`} used={walletUsed} cap={c.maxPerWallet}/>
       </>}
       <Quantity value={qty} setValue={setQty} max={maxQty}/>
-      <TxButton label={buttonLabel} address={CONTRACTS.gameEngine} abi={GAME_ENGINE_ABI} functionName="preMint" args={[BigInt(qty),BigInt(c?.id ?? 0)]} value={price * BigInt(qty)} disabled={!eligible || !c || maxQty === 0 || qty > maxQty} className="mt-4 w-full"/>
+      <TxButton label={buttonLabel} address={CONTRACTS.gameEngine} abi={GAME_ENGINE_ABI} functionName="preMint" args={[BigInt(qty),BigInt(c?.id ?? 0)]} value={price * BigInt(qty)} disabled={!eligible || !c || maxQty === 0 || qty > maxQty} onConfirmed={verifyLiveStage} className="mt-4 w-full"/>
       {c && <p className="mint-footnote">COMMUNITY CAP: {c.maxTotalAmountAllowed} · MAX PER WALLET: {c.maxPerWallet} · YOU USED: {walletUsed}. YOUR COUNTER IS READ DIRECTLY FROM <b>s_amountMintPerCollection(wallet, collection)</b>.</p>}
     </>}
   </div>;

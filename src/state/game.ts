@@ -14,6 +14,12 @@ export type ProtocolView = {
   preMintEnd: boolean;
   communityMintPrice: bigint;
   synced: boolean;
+  /**
+   * Frontend one-way latch. Once LIVE is observed, the UI never renders
+   * Community Pre-Mint or Public Mint again during this deployment.
+   * Onchain state remains authoritative; localStorage is only a fast boot hint.
+   */
+  liveLocked: boolean;
 };
 
 export const protocolAtom = atom<ProtocolView>({
@@ -30,4 +36,5 @@ export const protocolAtom = atom<ProtocolView>({
   preMintEnd: false,
   communityMintPrice: 4_000_000_000_000_000n,
   synced: false,
+  liveLocked: false,
 });

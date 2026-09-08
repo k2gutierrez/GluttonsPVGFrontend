@@ -1,3 +1,7 @@
+# Gluttons Frontend — FINAL v0.2
+
+> One-way LIVE stage latch added. See `BUILD_NOTES_FINAL_V0.2.md`.
+
 # Gluttons Frontend — FINAL v0.1
 
 # Gluttons Frontend Curtis V2.6
