@@ -2,17 +2,17 @@ export const contracts = {
     owner: "0xca067E20db2cDEF80D1c7130e5B71C42c0305529",
     user1: "0x7738797825902889925Ec60dE38d20Cd01250F64",
     user2: "0xA3E187116bcAD707a6b12C7DeC32037a8Be45b1d",
-    weth: "0x726De60355a19524815C74F543225aC8784e3BAE",
-    futureRewardsVault: "0x6B7FbB7Fb71A3b8887D58e158b93AeF27F966C98",
-    pvgTreasury: "0xdf06B6Ba2c7228857069ce52Ee10EFb0f9a8Fa0e",
-    gameEngine: "0xB7ef8cF2B84a885cb24108aA1B3CB8B9A299Ac58",
-    prizeVault: "0xC5C32ab7F71389DC99086B0c928799de576dF7b6",
-    royaltyTreasury: "0x11075db93EF213E824fFEcEE98E571CA921EdccD",
-    nft: "0x561168c3924bd0a0Cc1f9e4b22cF289201cd0625",
-    inspector: "0x3829838511B01684453b89122F54A0d36865c2eA"
+    weth: "0x78b43697436C98932494dc44DD925E0fEB3223fc",
+    futureRewardsVault: "0x4eeCD17080df53F935E6eFA48a3362beABb9a529",
+    pvgTreasury: "0x302FCb43e95ca1C3125961BFe3247f8eE1fA22d2",
+    gameEngine: "0x2D81c541817769bCb9F087144a453d34eE456719",
+    prizeVault: "0xACB4CdA4A5744f7e48029F2f4212b54f3908420d",
+    royaltyTreasury: "0x54aFB3DC06ea3391c20b98feB4a1f0EB8EDa400c",
+    nft: "0x2bD08310a1E6cdF1B52140eD478B84c9987d987d",
+    inspector: "0x1F9BAF9A55d783713B72e8a9559E8dcAef671C59"
 }
 
-const something = [
+const URIS = [
     "https://arweave.net/r92txKdo5_Z8wHwjLV511pvYs8TaxcJzM7TWf81Nzb0", // pre-reveal
     "https://arweave.net/F7CTP2tlZZgTBQaPQTHiV64y2TIALFgPA27QpTWV694/", // alive
     "https://arweave.net/fcrFqPYYwtLx-QUJmTKJFZDMdCN9y9RCc-7h18CSekM", // dead fresh
@@ -1577,11 +1577,6 @@ export const GameEngineABI = [
                 "internalType": "uint64"
             },
             {
-                "name": "poisonCooldownUntil",
-                "type": "uint64",
-                "internalType": "uint64"
-            },
-            {
                 "name": "poisonProtectedUntil",
                 "type": "uint64",
                 "internalType": "uint64"
@@ -1928,11 +1923,6 @@ export const GameEngineABI = [
     {
         "type": "error",
         "name": "GameEngine__NotUnanimous",
-        "inputs": []
-    },
-    {
-        "type": "error",
-        "name": "GameEngine__OnCooldown",
         "inputs": []
     },
     {
@@ -2471,6 +2461,32 @@ export const NftABI = [
                 "name": "",
                 "type": "address",
                 "internalType": "address"
+            }
+        ],
+        "stateMutability": "view"
+    },
+    {
+        "type": "function",
+        "name": "getTotalBurned",
+        "inputs": [],
+        "outputs": [
+            {
+                "name": "",
+                "type": "uint256",
+                "internalType": "uint256"
+            }
+        ],
+        "stateMutability": "view"
+    },
+    {
+        "type": "function",
+        "name": "getTotalMinted",
+        "inputs": [],
+        "outputs": [
+            {
+                "name": "",
+                "type": "uint256",
+                "internalType": "uint256"
             }
         ],
         "stateMutability": "view"
@@ -3352,3 +3368,13 @@ export const InspectorABI = [
         "stateMutability": "view"
     }
 ] as const;
+
+export const ABIS = {
+    futureRewardsVault: futureRewardsVaultABI,
+    PVGTreasury: PVGTreasuryABI,
+    GameEngine: GameEngineABI,
+    PrizeVault: PrizeVaultABI,
+    RoyaltyTreasury: RoyaltyTreasuryABI,
+    Nft: NftABI,
+    Inspector: InspectorABI
+}

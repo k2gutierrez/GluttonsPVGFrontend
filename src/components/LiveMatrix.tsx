@@ -3,14 +3,9 @@
 import Link from 'next/link';
 import { Kicker, Panel } from '@/components/Terminal';
 import { StadiumToken, stadiumRemaining, usePublicStadium } from '@/hooks/usePublicStadium';
+import { gameClock } from '@/lib/time';
 
-const clock = (seconds: number) => {
-  const n = Math.max(0, Math.floor(seconds));
-  const h = Math.floor(n / 3600);
-  const m = Math.floor((n % 3600) / 60);
-  const s = n % 60;
-  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-};
+const clock = gameClock;
 
 const label: Record<string,string> = {
   UNMINTED: 'UNMINTED', LOADING: 'SYNCING', ALIVE: 'ALIVE', HUNGRY: 'HUNGRY', FASTING: 'FASTING',
@@ -34,14 +29,14 @@ export function LiveMatrix({ compactBoard = true }: { compactBoard?: boolean }) 
   return <>
     <Panel className="stadium-matrix-panel p-5 md:p-7">
       <div className="matrix-head">
-        <div><Kicker>the organism / 2,000 positions</Kicker><h2>LIVE GLUTTON MATRIX</h2><p>One fixed cell per token ID. Death changes the cell; consumption burns it out. The grid never reorders.</p></div>
+        <div><Kicker>the organism / starting population</Kicker><h2>LIVE GLUTTON MATRIX</h2><p>One fixed cell per token ID. Death changes the cell; consumption burns it out. The grid never reorders.</p></div>
         <div className="matrix-sync"><span>{loading ? 'INITIAL SYNC' : 'ROTATING LIVE READ'}</span><strong>{Math.min(scanned,totalMinted).toLocaleString()} / {totalMinted.toLocaleString()}</strong><small>{batchSize} IDs / RPC page</small></div>
       </div>
       {error && <div className="matrix-error">RPC READ DEGRADED · {error}</div>}
       <div className="matrix-legend" aria-label="Matrix legend">
         {['ALIVE','HUNGRY','FASTING','FINAL_BITE','FRESH','ROTTEN','CONSUMED','UNMINTED'].map(k => <span key={k}><i className={`matrix-dot state-${k.toLowerCase().replace('_','-')}`}/>{label[k]}</span>)}
       </div>
-      <div className="glutton-matrix" role="grid" aria-label="2,000 Glutton live state matrix">
+      <div className="glutton-matrix" role="grid" aria-label="Glutton live state matrix">
         {list.map(t => {
           const life = stadiumRemaining(t, now);
           const title = `#${String(t.id).padStart(4,'0')} · ${label[t.status]}${life>0?` · ${clock(life)}`:''}${t.loaded?` · SHIELD ${shield(t,now)}`:''}`;

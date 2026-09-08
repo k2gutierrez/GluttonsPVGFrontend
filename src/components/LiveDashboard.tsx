@@ -4,7 +4,7 @@ import { useAtomValue } from 'jotai';
 import { useBalance, useBlockNumber, useReadContract } from 'wagmi';
 import { formatEther, type Address } from 'viem';
 import { protocolAtom } from '@/state/game';
-import { CONTRACTS, ERC20_ABI, MAX_SUPPLY, NATIVE_SYMBOL, PRIZE_VAULT_ABI, ROYALTY_TREASURY_ABI, ZERO_ADDRESS } from '@/lib/constants';
+import { CONTRACTS, ERC20_ABI, GAME_HOUR_SECONDS, NATIVE_SYMBOL, PRIZE_VAULT_ABI, ROYALTY_TREASURY_ABI, ZERO_ADDRESS } from '@/lib/constants';
 import { Panel, Kicker } from './Terminal';
 import { Header } from './Header';
 import { TxButton } from './TxButton';
@@ -17,18 +17,18 @@ export function LiveDashboard() {
   const wethAddressR = useReadContract({ address: CONTRACTS.prizeVault, abi: PRIZE_VAULT_ABI, functionName: 'getWethAddress', query: { enabled: CONTRACTS.prizeVault !== ZERO_ADDRESS } });
   const wethAddress = (wethAddressR.data || ZERO_ADDRESS) as Address;
   const wethPot = useReadContract({ address: wethAddress, abi: ERC20_ABI, functionName: 'balanceOf', args: [CONTRACTS.prizeVault], query: { enabled: wethAddress !== ZERO_ADDRESS, refetchInterval: 5000 } });
-  const minted = Number(p.totalMinted || BigInt(MAX_SUPPLY)); const S = Number(p.startingPopulation || p.totalMinted); const alive = Number(p.aliveCount); const meal = Number(p.currentMealSeconds) / 3600; const bars = Number(p.completedBars);
+  const maxSupply = Number(p.maxSupply || 2000n); const minted = Number(p.totalMinted || p.startingPopulation); const S = Number(p.startingPopulation || p.totalMinted); const alive = Number(p.aliveCount); const meal = Number(p.currentMealSeconds) / GAME_HOUR_SECONDS; const bars = Number(p.completedBars);
   const totalPotWei = (pot.data?.value || 0n) + BigInt(wethPot.data || 0n);
   const potValue = pot.data || wethPot.data !== undefined ? Number(formatEther(totalPotWei)).toLocaleString(undefined, { maximumFractionDigits: 4 }) : '—';
-  const phase = p.isSettled ? 'SETTLED' : p.currentPhase; const next = phase === 'FEAST' ? `PLAGUE ≤ ${Math.ceil(S * .5)} ALIVE OR +2H MEAL` : phase === 'PLAGUE' ? `LAST SUPPER ≤ ${Math.ceil(S * .025)} ALIVE / DAY 120` : phase === 'LAST_SUPPER' ? 'TRUCE / ONE SURVIVOR' : 'VERDICT';
+  const phase = p.isSettled ? 'SETTLED' : p.currentPhase; const next = phase === 'FEAST' ? `PLAGUE ≤ ${Math.ceil(S * .5)} ALIVE OR +2H MEAL` : phase === 'PLAGUE' ? `LAST SUPPER WARNING ≤ ${Math.ceil(S * .025)} ALIVE / DAY 120` : phase === 'LS_WARNING' ? 'LAST SUPPER BELL IN 1H' : phase === 'LAST_SUPPER' ? 'TRUCE / ONE SURVIVOR' : 'VERDICT';
   return <><Header/><main className="page-shell live-page">
     <div className="ambient-word ambient-a"><WeightWord word="HUNGER"/></div>
     <section className="live-hero" data-reveal>
       <div><Kicker>live protocol / public stadium</Kicker><MorphTicker/><h1 className="live-title idle-glitch" data-text={phase}><Scramble loop>{phase}</Scramble></h1><p>FOOD GETS WORSE. <b>THE POT KEEPS GROWING.</b></p></div>
-      <div className="chain-heartbeat"><i/><span>CURTIS BLOCK</span><strong>{block.data ? block.data.toString() : 'SYNCING'}</strong></div>
+      <div className="chain-heartbeat"><i/><span>CHAIN BLOCK</span><strong>{block.data ? block.data.toString() : 'SYNCING'}</strong></div>
     </section>
     <div className="state-grid">
-      <Metric title="MINTED" value={`${minted.toLocaleString()} / ${MAX_SUPPLY}`} bar={pct(minted, MAX_SUPPLY)}/>
+      <Metric title="MINTED" value={`${minted.toLocaleString()} / ${maxSupply.toLocaleString()}`} bar={pct(minted, maxSupply)}/>
       <Metric title="ALIVE" value={`${alive.toLocaleString()} / ${S || minted}`} bar={pct(alive, S || minted)}/>
       <Metric title="THE POT" value={`${potValue} ${NATIVE_SYMBOL}`} sub="ETH + WETH IN PRIZE VAULT" pulse/>
       <Metric title="CURRENT MEAL" value={`+${meal.toFixed(2)}H`} bar={pct(meal, 24)}/>

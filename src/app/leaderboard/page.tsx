@@ -4,8 +4,9 @@ import Link from 'next/link';
 import { Header } from '@/components/Header';
 import { Kicker, Panel } from '@/components/Terminal';
 import { stadiumRemaining, usePublicStadium } from '@/hooks/usePublicStadium';
+import { gameClock } from '@/lib/time';
 
-const clock = (seconds: number) => { const n=Math.max(0,Math.floor(seconds)); const h=Math.floor(n/3600),m=Math.floor(n%3600/60),s=n%60; return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`; };
+const clock = gameClock;
 const stateLabel: Record<string,string> = { ALIVE:'ALIVE',HUNGRY:'HUNGRY',FASTING:'FASTING',FINAL_BITE:'FINAL BITE' };
 
 export default function LeaderboardPage(){

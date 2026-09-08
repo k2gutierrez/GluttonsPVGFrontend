@@ -4,7 +4,7 @@ import { useAccount, usePublicClient } from 'wagmi';
 import { useAtomValue } from 'jotai';
 import type { Address } from 'viem';
 import { protocolAtom } from '@/state/game';
-import { CONTRACTS, GAME_ENGINE_ABI, GLUTTON_NFT_ABI, INSPECTOR_ABI, ZERO_ADDRESS } from '@/lib/constants';
+import { CONTRACTS, GAME_ENGINE_ABI, GAME_HOUR_SECONDS, GLUTTON_NFT_ABI, INSPECTOR_ABI, ZERO_ADDRESS } from '@/lib/constants';
 import { metadataImage } from '@/lib/metadata';
 
 export type GluttonToken = {
@@ -15,7 +15,6 @@ export type GluttonToken = {
   isHungry: boolean;
   tokenUri: string;
   image: string;
-  poisonCooldownUntil: number;
   poisonProtectedUntil: number;
   finalBiteDeadline: number;
   deadAt: number;
@@ -26,22 +25,34 @@ export type GluttonToken = {
   deathSettled: boolean;
 };
 
-// Keep every RPC payload deliberately small. A 2,000-token wallet is a valid
+// Keep every RPC payload deliberately small. A large wallet is a valid
 // stress-test case on Curtis, so inventory discovery is progressive rather than
 // one giant multicall.
 export const INVENTORY_PAGE_SIZE = 50;
 const okResult = (r: any) => r?.status === 'success' ? r.result : undefined;
 
+async function resilientMulticall(client: any, contracts: any[], floor = 1): Promise<any[]> {
+  if (contracts.length === 0) return [];
+  try {
+    return await client.multicall({ allowFailure: true, deployless: true, contracts });
+  } catch (error) {
+    if (contracts.length <= floor) throw error;
+    const mid = Math.ceil(contracts.length / 2);
+    const left = await resilientMulticall(client, contracts.slice(0, mid), floor);
+    const right = await resilientMulticall(client, contracts.slice(mid), floor);
+    return [...left, ...right];
+  }
+}
+
 // GameEngine.getVisualState() remains the canonical Fresh/Rotten source.
-// However, a loaded token can cross its expiry between RPC reads. The frontend
-// must stop presenting ALIVE actions immediately at that boundary instead of
-// waiting for a manual refresh. Under the currently deployed Curtis contract,
-// expiry (or an elapsed Final Bite deadline) is logical death even if the last
-// Inspector snapshot still says visualState=1.
+// A loaded token can cross a clock boundary between RPC reads. Canonical v1.3
+// keeps FASTING alive at 0H pre-Last-Supper; an elapsed Final Bite is death.
+// Normal non-Fasting expiry is logical death even before Reap/accounting sync.
 export function isLogicallyDead(t: GluttonToken, now = Math.floor(Date.now() / 1000)) {
   if (t.visualState === 2 || t.visualState === 3) return true;
   if (t.visualState !== 1) return false;
   if (t.finalBiteDeadline > 0 && now >= t.finalBiteDeadline) return true;
+  if (t.fasting) return false;
   return t.expiry > 0 && now >= t.expiry;
 }
 
@@ -63,7 +74,7 @@ export function statusOf(t: GluttonToken, now = Math.floor(Date.now() / 1000)) {
   if (visualState === 3) return 'ROTTEN';
   if (t.finalBiteDeadline > now) return 'FINAL BITE';
   if (t.fasting) return 'FASTING';
-  if (t.expiry > now && (t.expiry - now) <= 12 * 3600) return 'HUNGRY';
+  if (t.expiry > now && (t.expiry - now) <= 12 * GAME_HOUR_SECONDS) return 'HUNGRY';
   return 'ALIVE';
 }
 
@@ -82,60 +93,45 @@ export function useOwnedGluttons() {
   const requestLock = useRef(false);
   const sessionRef = useRef(0);
 
-  const totalMinted = Math.min(Number(p.totalMinted), 2000);
+  const supplySource = p.gameStart > 0n && p.startingPopulation > 0n ? p.startingPopulation : p.totalMinted;
+  const totalMinted = Math.max(0, Number(supplySource));
   const hasMore = nextTokenId <= totalMinted;
 
   const hydrateIds = useCallback(async (ids: number[]) => {
     if (!client || ids.length === 0) return [] as GluttonToken[];
-
-    // At most 50 contracts per multicall. deployless avoids relying on a
-    // Multicall3 deployment in the custom Curtis chain definition.
-    const [views, states, uris] = await Promise.all([
-      client.multicall({
-        allowFailure: true,
-        deployless: true,
-        contracts: ids.map(id => ({ address: CONTRACTS.inspector, abi: INSPECTOR_ABI, functionName: 'getTokenView', args: [BigInt(id)] })) as any,
-      }),
-      client.multicall({
-        allowFailure: true,
-        deployless: true,
-        contracts: ids.map(id => ({ address: CONTRACTS.gameEngine, abi: GAME_ENGINE_ABI, functionName: 's_tokenStates', args: [BigInt(id)] })) as any,
-      }),
-      client.multicall({
-        allowFailure: true,
-        deployless: true,
-        contracts: ids.map(id => ({ address: CONTRACTS.gluttonNFT, abi: GLUTTON_NFT_ABI, functionName: 'tokenURI', args: [BigInt(id)] })) as any,
-      }),
+    const [views, states] = await Promise.all([
+      resilientMulticall(client, ids.map(id => ({ address: CONTRACTS.inspector, abi: INSPECTOR_ABI, functionName: 'getTokenView', args: [BigInt(id)] }))),
+      resilientMulticall(client, ids.map(id => ({ address: CONTRACTS.gameEngine, abi: GAME_ENGINE_ABI, functionName: 's_tokenStates', args: [BigInt(id)] }))),
     ]);
-
     const raw: GluttonToken[] = [];
     ids.forEach((id, i) => {
       const v: any = okResult(views[i]);
       const s: any = okResult(states[i]);
-      const uri = String(okResult(uris[i]) || '');
-      if (!v) return; // burned/nonexistent IDs are ignored
+      if (!v) return;
       const arr = Array.isArray(s) ? s : [];
       raw.push({
-        id,
-        owner: v.owner as Address,
-        visualState: Number(v.visualState),
-        expiry: Number(v.expiry),
-        isHungry: Boolean(v.isHungry),
-        tokenUri: uri,
-        image: '',
-        poisonCooldownUntil: Number(arr[1] || 0),
-        poisonProtectedUntil: Number(arr[2] || 0),
-        finalBiteDeadline: Number(arr[3] || 0),
-        deadAt: Number(arr[4] || 0),
-        spoilCheckpoint: Number(arr[5] || 0),
-        poweredUntil: Number(arr[6] || 0),
-        spoilQ4: Number(arr[7] || 0),
-        fasting: Boolean(arr[8]),
-        deathSettled: Boolean(arr[9]),
+        id, owner: v.owner as Address, visualState: Number(v.visualState), expiry: Number(v.expiry), isHungry: Boolean(v.isHungry),
+        tokenUri: '', image: '', poisonProtectedUntil: Number(arr[1] || 0), finalBiteDeadline: Number(arr[2] || 0),
+        deadAt: Number(arr[3] || 0), spoilCheckpoint: Number(arr[4] || 0), poweredUntil: Number(arr[5] || 0),
+        spoilQ4: Number(arr[6] || 0), fasting: Boolean(arr[7]), deathSettled: Boolean(arr[8]),
       });
     });
+    return raw;
+  }, [client]);
 
-    return Promise.all(raw.map(async t => ({ ...t, image: await metadataImage(t.tokenUri, t.visualState) })));
+  const hydrateImages = useCallback(async (ids: number[]) => {
+    if (!client || ids.length === 0) return;
+    try {
+      const reads = await resilientMulticall(client, ids.map(id => ({ address: CONTRACTS.gluttonNFT, abi: GLUTTON_NFT_ABI, functionName: 'tokenURI', args: [BigInt(id)] })));
+      const updates = new Map<number, { tokenUri: string; image: string }>();
+      await Promise.all(ids.map(async (id, i) => {
+        const uri = String(okResult(reads[i]) || '');
+        if (!uri) return;
+        const image = await metadataImage(uri, 1);
+        updates.set(id, { tokenUri: uri, image });
+      }));
+      if (updates.size) setTokens(prev => prev.map(t => updates.has(t.id) ? { ...t, ...updates.get(t.id)! } : t));
+    } catch { /* metadata is non-critical; fallback art remains */ }
   }, [client]);
 
   const scanPage = useCallback(async (startId: number, session = sessionRef.current) => {
@@ -151,11 +147,7 @@ export function useOwnedGluttons() {
       const endId = Math.min(totalMinted, startId + INVENTORY_PAGE_SIZE - 1);
       const ids = Array.from({ length: endId - startId + 1 }, (_, i) => startId + i);
 
-      const owners = await client.multicall({
-        allowFailure: true,
-        deployless: true,
-        contracts: ids.map(id => ({ address: CONTRACTS.gluttonNFT, abi: GLUTTON_NFT_ABI, functionName: 'ownerOf', args: [BigInt(id)] })) as any,
-      });
+      const owners = await resilientMulticall(client, ids.map(id => ({ address: CONTRACTS.gluttonNFT, abi: GLUTTON_NFT_ABI, functionName: 'ownerOf', args: [BigInt(id)] })));
 
       if (session !== sessionRef.current) return;
 
@@ -175,6 +167,8 @@ export function useOwnedGluttons() {
       });
       setScannedCount(endId);
       setNextTokenId(endId + 1);
+      // First paint uses state + fallback art; metadata hydrates afterward.
+      void hydrateImages(ownedIds);
     } catch (e: any) {
       if (session === sessionRef.current) setError(e?.shortMessage || e?.message || 'Could not load wallet inventory page.');
     } finally {
@@ -184,7 +178,7 @@ export function useOwnedGluttons() {
         setLoadingMore(false);
       }
     }
-  }, [client, address, totalMinted, scannedCount, hydrateIds]);
+  }, [client, address, totalMinted, scannedCount, hydrateIds, hydrateImages]);
 
   const loadMore = useCallback(async () => {
     if (!hasMore || loading || loadingMore) return;
@@ -192,7 +186,7 @@ export function useOwnedGluttons() {
   }, [hasMore, loading, loadingMore, scanPage, nextTokenId]);
 
   // Refresh only specific token IDs. This is used for clock-boundary state
-  // transitions and action confirmations so a 2,000-token wallet never needs a
+  // transitions and action confirmations so a large wallet never needs a
   // full inventory hydration just because one Glutton died, fed, or was reaped.
   const refreshIds = useCallback(async (ids: number[]) => {
     if (!client || !address || ids.length === 0) return;
@@ -215,6 +209,7 @@ export function useOwnedGluttons() {
         hydratedOwned.forEach(t => map.set(t.id, t));
         return [...map.values()].sort((a, b) => a.id - b.id);
       });
+      void hydrateImages(hydratedOwned.map(t => t.id));
 
       // Burns/consumption can change ERC-721 balance, so keep the header honest.
       const balance = await client.readContract({
@@ -227,7 +222,7 @@ export function useOwnedGluttons() {
     } catch (e: any) {
       setError(e?.shortMessage || e?.message || 'Could not refresh token state.');
     }
-  }, [client, address, hydrateIds]);
+  }, [client, address, hydrateIds, hydrateImages]);
 
   // Refresh only the inventory already discovered. This keeps a player who has
   // scrolled deep into a large wallet from being thrown back to token #1 after
@@ -247,6 +242,7 @@ export function useOwnedGluttons() {
         });
       }
       setTokens(updated.sort((a, b) => a.id - b.id));
+      void hydrateImages(updated.map(t => t.id));
       const balance = await client.readContract({ address: CONTRACTS.gluttonNFT, abi: GLUTTON_NFT_ABI, functionName: 'balanceOf', args: [address] });
       setWalletBalance(Number(balance));
     } catch (e: any) {
@@ -254,7 +250,7 @@ export function useOwnedGluttons() {
     } finally {
       setRefreshing(false);
     }
-  }, [client, address, tokens, refreshing, hydrateIds]);
+  }, [client, address, tokens, refreshing, hydrateIds, hydrateImages]);
 
   const rescan = useCallback(async () => {
     if (!client || !address) return;

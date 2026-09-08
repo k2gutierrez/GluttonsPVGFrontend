@@ -2,10 +2,10 @@
 import { useEffect, useRef } from 'react';
 import { useAtom } from 'jotai';
 import { useReadContracts } from 'wagmi';
-import { CONTRACTS, GAME_ENGINE_ABI, INSPECTOR_ABI, MAX_SUPPLY, ZERO_ADDRESS } from '@/lib/constants';
+import { CONTRACTS, GAME_ENGINE_ABI, INSPECTOR_ABI, DEFAULT_MAX_SUPPLY, ZERO_ADDRESS } from '@/lib/constants';
 import { protocolAtom } from '@/state/game';
 
-const LIVE_LOCK_KEY = 'gluttons:live-locked:v1';
+const LIVE_LOCK_KEY = `gluttons:live-locked:${CONTRACTS.gameEngine.toLowerCase()}`;
 const engineRead = (name: string) => ({ address: CONTRACTS.gameEngine, abi: GAME_ENGINE_ABI, functionName: name } as const);
 
 function persistLiveLock() {
@@ -36,6 +36,7 @@ export function GameSync() {
     contracts: [
       { address: CONTRACTS.inspector, abi: INSPECTOR_ABI, functionName: 'getGlobalView' },
       engineRead('s_totalMinted'),
+      engineRead('MAX_SUPPLY'),
       engineRead('s_gameStart'),
       engineRead('S'),
       engineRead('s_totalNormalFeeds'),
@@ -59,9 +60,10 @@ export function GameSync() {
     if (!pre.data || liveRef.current) return;
     const get = (i: number) => (pre.data?.[i] as any)?.status === 'success' ? (pre.data?.[i] as any).result : undefined;
     const g: any = get(0);
-    const gameStart = BigInt(get(2) ?? 0n);
+    const maxSupply = BigInt(get(2) ?? DEFAULT_MAX_SUPPLY);
+    const gameStart = BigInt(get(3) ?? 0n);
     const totalMinted = BigInt(get(1) ?? 0n);
-    const soldOut = totalMinted >= BigInt(MAX_SUPPLY);
+    const soldOut = maxSupply > 0n && totalMinted >= maxSupply;
     const started = gameStart > 0n;
     const lockNow = started || soldOut;
 
@@ -70,9 +72,9 @@ export function GameSync() {
       persistLiveLock();
     }
 
-    const alive = g?.aliveCount ?? get(7) ?? 0n;
-    const meal = g?.currentMealSeconds ?? get(8) ?? 86400n;
-    const settled = g?.isSettled ?? get(9) ?? false;
+    const alive = g?.aliveCount ?? get(8) ?? 0n;
+    const meal = g?.currentMealSeconds ?? get(9) ?? 86400n;
+    const settled = g?.isSettled ?? get(10) ?? false;
     const phase = g?.currentPhase ?? (lockNow ? 'FEAST' : 'PRE_GAME');
 
     set(prev => ({
@@ -82,13 +84,14 @@ export function GameSync() {
       isSettled: Boolean(settled),
       currentPhase: String(phase),
       totalMinted,
+      maxSupply,
       gameStart,
-      startingPopulation: BigInt(get(3) ?? 0n),
-      totalNormalFeeds: BigInt(get(4) ?? 0n),
-      completedBars: BigInt(get(5) ?? 0n),
-      startBackstop: BigInt(get(6) ?? 0n),
-      preMintEnd: Boolean(get(10) ?? false),
-      communityMintPrice: BigInt(get(11) ?? 4_000_000_000_000_000n),
+      startingPopulation: BigInt(get(4) ?? 0n),
+      totalNormalFeeds: BigInt(get(5) ?? 0n),
+      completedBars: BigInt(get(6) ?? 0n),
+      startBackstop: BigInt(get(7) ?? 0n),
+      preMintEnd: Boolean(get(11) ?? false),
+      communityMintPrice: BigInt(get(12) ?? 4_000_000_000_000_000n),
       synced: true,
       liveLocked: prev.liveLocked || lockNow,
     }));
@@ -100,6 +103,7 @@ export function GameSync() {
     contracts: [
       { address: CONTRACTS.inspector, abi: INSPECTOR_ABI, functionName: 'getGlobalView' },
       engineRead('s_gameStart'),
+      engineRead('MAX_SUPPLY'),
       engineRead('S'),
       engineRead('s_totalNormalFeeds'),
       engineRead('s_completedBars'),
@@ -120,9 +124,9 @@ export function GameSync() {
     const get = (i: number) => (live.data?.[i] as any)?.status === 'success' ? (live.data?.[i] as any).result : undefined;
     const g: any = get(0);
     const gameStart = BigInt(get(1) ?? p.gameStart ?? 0n);
-    const alive = g?.aliveCount ?? get(5) ?? p.aliveCount;
-    const meal = g?.currentMealSeconds ?? get(6) ?? p.currentMealSeconds;
-    const settled = g?.isSettled ?? get(7) ?? p.isSettled;
+    const alive = g?.aliveCount ?? get(6) ?? p.aliveCount;
+    const meal = g?.currentMealSeconds ?? get(7) ?? p.currentMealSeconds;
+    const settled = g?.isSettled ?? get(8) ?? p.isSettled;
     const phase = g?.currentPhase ?? p.currentPhase ?? 'FEAST';
 
     set(prev => ({
@@ -132,9 +136,10 @@ export function GameSync() {
       isSettled: Boolean(settled),
       currentPhase: String(phase),
       gameStart: gameStart > 0n ? gameStart : prev.gameStart,
-      startingPopulation: BigInt(get(2) ?? prev.startingPopulation),
-      totalNormalFeeds: BigInt(get(3) ?? prev.totalNormalFeeds),
-      completedBars: BigInt(get(4) ?? prev.completedBars),
+      maxSupply: BigInt(get(2) ?? prev.maxSupply),
+      startingPopulation: BigInt(get(3) ?? prev.startingPopulation),
+      totalNormalFeeds: BigInt(get(4) ?? prev.totalNormalFeeds),
+      completedBars: BigInt(get(5) ?? prev.completedBars),
       synced: true,
       liveLocked: true,
     }));

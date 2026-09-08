@@ -1,152 +1,49 @@
-# Gluttons Frontend — FINAL v0.2
+# Gluttons Frontend — FINAL CANONICAL v1.0
 
-> One-way LIVE stage latch added. See `BUILD_NOTES_FINAL_V0.2.md`.
-
-# Gluttons Frontend — FINAL v0.1
-
-# Gluttons Frontend Curtis V2.6
-
-**Poison Target Lock update.** The complete V2.4 frontend remains intact. Poison now performs a live canonical target read before enabling the transaction, shows the target life clock and Poison Shield countdown, blocks protected/dead/final-bite/too-low-clock targets in the UI, polls the target every 5 seconds, and runs a final `simulateContract` preflight immediately before opening the wallet.
-
-
-## V2.6 — Death State Synchronization
-Curtis testing exposed a stale Inspector snapshot problem at the exact death boundary. V2.6 makes My Gluttons clock-aware: when a loaded token crosses expiry it immediately loses living actions, moves to Corpse Inventory, displays Fresh-death artwork, and queues a canonical refresh for only that token (or a maximum 50-token batch). Reap then unlocks `KEEP FRESH`. See `BUILD_NOTES_V2.6.md`.
-
-# Gluttons Frontend — Curtis V2.6 Complete
-
-Deploy-ready Next.js frontend updated to the **latest reviewed Gluttons Frontend Integration Manual**.
-
-## V2.3 change
-The GameEngine now exposes both wallet mint counters publicly, so the frontend can show the user's exact mint usage before a transaction:
-
-```solidity
-s_normalMintAmount(address wallet)
-s_amountMintPerCollection(address wallet, address collection)
-```
-
-### Public Mint UX
-The console now displays:
-- `YOUR PUBLIC MINTS X / 4`;
-- exact remaining public allowance;
-- wallet usage progress bar;
-- quantity capped to the exact remaining allowance;
-- `PUBLIC MINT LIMIT USED` when the connected wallet reaches 4/4.
-
-### Community Pre-Mint UX
-For each invited collection the UI now displays:
-- invited NFT holder detection;
-- `YOU X / maxPerWallet`;
-- exact Community mints left for that wallet;
-- total Community allocation minted / remaining;
-- quantity capped by wallet allowance, Community allocation and global supply.
-
-These are canonical GameEngine reads. The contract still performs the final validation at execution.
-
-## Important counter behavior
-The current Solidity contract keeps Community and Public counters separate:
-
-```text
-Community: s_amountMintPerCollection(wallet, collection)
-Public:    s_normalMintAmount(wallet)
-```
-
-Therefore Community Pre-Mints do **not** consume the 4 Public Mint counter unless the smart contract is intentionally changed later.
+This is the complete frontend handoff for Carlos. It supersedes every earlier v2.x / v0.x frontend package.
 
 ## Stack
-- Next.js 15 App Router (`src/`)
-- React 19
-- TailwindCSS
-- Wagmi v2
-- RainbowKit
-- Viem
-- Jotai
-- TanStack Query
+Next.js App Router (`src/`) · TypeScript · Tailwind · Wagmi · RainbowKit · Viem · Jotai.
 
-Dependency versions remain pinned to avoid the connector/x402 drift encountered in the earlier install.
+## Canonical behavior included
+- Awareness -> Community Pre-Mint -> Public Mint -> irreversible LIVE.
+- `s_gameStart > 0` is the permanent LIVE latch. The local cache key is deployment-address-specific, so a new contract deployment cannot inherit the previous deployment's LIVE state.
+- Runtime supply. Pre-game reads `GameEngine.MAX_SUPPLY()`; after Game Start inventory/matrix geometry uses `S`. A 100-token Curtis deployment and 2,000-token mainnet deployment use the same code.
+- FASTING survives 0H before Last Supper. Failed Final Bite is death. Normal non-Fasting expiry is death.
+- Poison has **NO attacker cooldown**. Attacker must have >1 game-hour and loses 1H. Normal target must have >1H and unprotected; protection/shield is read from `poisonProtectedUntil` (canonical 10H). Poisoning FASTING triggers Final Bite.
+- Canonical TokenState ABI has no `poisonCooldownUntil`.
+- No player-facing Reap / Register Death / Sync Corpse action. Death resolves to Fresh; corpse actions rely on canonical backend synchronization.
+- Freshness bar + ROTS IN + separate Fridge timer. KEEP FRESH slows spoilage and never resets freshness.
+- LIVE order: global phase/progress -> live matrix -> compact leaderboard. Full `/leaderboard` exists separately.
+- Matrix population is deployment-sized, fixed by tokenId, and never reorders. Fresh/Rotten remain visible; consumed/burned becomes empty/ash.
+- Inventory is wallet-owned only, paginated, RPC-resilient, and lazy-hydrates metadata after state cards paint.
+- Responsive: page width never exceeds viewport; no horizontal page scroll; mobile leaderboard becomes cards.
 
-## Install
+## Configure
+Copy `.env.example` to `.env.local` and set current deployment addresses.
 
+For accelerated Curtis where **1 real minute = 1 game hour**:
+```env
+NEXT_PUBLIC_CHAIN_MODE=curtis
+NEXT_PUBLIC_GAME_HOUR_SECONDS=60
+```
+
+For Ethereum mainnet:
+```env
+NEXT_PUBLIC_CHAIN_MODE=ethereum
+NEXT_PUBLIC_GAME_HOUR_SECONDS=3600
+NEXT_PUBLIC_ETHEREUM_RPC_URL=YOUR_RPC
+```
+
+## Run
 ```bash
 npm install
-cp .env.example .env.local
 npm run check
+npm run build
 npm run dev
 ```
 
-Open `http://localhost:3000`.
-
-## Required Curtis addresses
-
-```env
-NEXT_PUBLIC_GLUTTON_NFT_ADDRESS=
-NEXT_PUBLIC_GAME_ENGINE_ADDRESS=
-NEXT_PUBLIC_INSPECTOR_ADDRESS=
-NEXT_PUBLIC_PRIZE_VAULT_ADDRESS=
-NEXT_PUBLIC_PVG_TREASURY_ADDRESS=
-NEXT_PUBLIC_ROYALTY_TREASURY_ADDRESS=
-NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=
-```
-
-Community Pre-Mint lives inside GameEngine. There is no CommunityMintController address.
-
-## Website lifecycle
-
-### Awareness
-```env
-NEXT_PUBLIC_SITE_STAGE=awareness
-```
-Only teaser + X follow + pasted-wallet registration.
-
-### Mint
-```env
-NEXT_PUBLIC_SITE_STAGE=mint
-```
-GameEngine chooses the mint surface automatically:
-- `s_preMintEnd=false` → Community Pre-Mint
-- `s_preMintEnd=true` → Public Mint
-
-### Live
-Once `s_gameStart > 0`, contract state overrides marketing config. The home route becomes the live Stadium and `MY GLUTTONS` unlocks.
-
-## Separate Community Admin URL
-`/communities` remains the GameEngine Owner console for community configuration and is intentionally outside the main player navigation.
-
-## My Gluttons
-The inventory discovers NFTs currently owned by the connected wallet and uses Inspector/GameEngine/tokenURI for live state, clocks, gameplay statuses and artwork.
-
-## Art replacement
-Replace:
-
-```text
-public/art/pre-reveal.png
-```
-
-with final unrevealed art. Fallback paths are centralized in `src/lib/constants.ts -> ASSETS`.
-
 ## Validation
+See `BUILD_NOTES_FINAL_CANONICAL_V1.0.md` for the deployment checklist.
 
-```bash
-npm run check
-npm run build
-```
-
-See `BLUEPRINT_DELTA_V2.3.md` and `IMPLEMENTATION_NOTES.md` for the exact contract/frontend delta and Curtis test plan.
-
-## V2.4 — Curtis-safe inventory pagination + public Inspector
-
-- `My Gluttons` no longer scans/hydrates the entire 1..2000 supply in one hook pass.
-- Inventory discovery uses 50-token ID pages (`INVENTORY_PAGE_SIZE = 50`) and loads the next page when the pagination sentinel approaches the viewport; a manual `LOAD NEXT 50` fallback remains visible.
-- The exact wallet NFT balance is read with `GluttonNFT.balanceOf(address)` so the UI can show `WALLET / LOADED / SCANNED` without pretending the partially loaded state counts are complete.
-- All Curtis multicalls use `deployless: true`; individual `/inspect` reads use `readContract` and do not need multicall.
-- `/inspect` is now a real public route and the Live Dashboard INSPECT link points to it.
-- `My Gluttons` has `FULL INSPECT` per token; `SYNC METADATA` remains a separate action.
-- TxButton React 19 type fix included: `useRef<string | undefined>(undefined)`.
-- Final-table scanning was reduced from 200-token calls to 50-token calls as an additional Curtis RPC safety measure.
-
-For a stress-test wallet holding all 2,000 Gluttons, the expected behavior is: load 50 -> render -> scroll -> load next 50, rather than issuing one 2,000-token RPC payload.
-
----
-
-## v0.1 — Live Stadium
-
-This directory includes the complete frontend. v0.1 adds the fixed 2,000-cell Live Glutton Matrix, compact + full Survival Board, Corpse Freshness / ROTS IN UX, separate Fridge countdown, Poison success feedback, Shield UP/DOWN terminology, transient transaction confirmations, and removes the player-facing Reap tool. See `BUILD_NOTES_FINAL v0.1.md` for the implementation and Curtis test checklist.
+The deployed ABI/contracts are the source of truth for callable surfaces. The package ABI is aligned to the canonical Sep 2026 TokenState layout and must be updated if Carlos changes that deployed layout.

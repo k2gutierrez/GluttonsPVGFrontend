@@ -1,6 +1,6 @@
 {
-  "name": "gluttons-frontend-curtis",
-  "version": "0.2.0",
+  "name": "gluttons-frontend-final-canonical",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
     "dev": "next dev",

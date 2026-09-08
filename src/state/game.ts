@@ -6,6 +6,7 @@ export type ProtocolView = {
   isSettled: boolean;
   currentPhase: string;
   totalMinted: bigint;
+  maxSupply: bigint;
   gameStart: bigint;
   startingPopulation: bigint;
   totalNormalFeeds: bigint;
@@ -28,6 +29,7 @@ export const protocolAtom = atom<ProtocolView>({
   isSettled: false,
   currentPhase: 'PRE_GAME',
   totalMinted: 0n,
+  maxSupply: 2000n,
   gameStart: 0n,
   startingPopulation: 0n,
   totalNormalFeeds: 0n,

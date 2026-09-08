@@ -6,7 +6,7 @@ import { useAccount, useReadContract, useReadContracts } from 'wagmi';
 import { formatEther, type Address } from 'viem';
 import { protocolAtom } from '@/state/game';
 import {
-  CONTRACTS, GAME_ENGINE_ABI, MAX_SUPPLY, MINT_PRICE, NATIVE_SYMBOL,
+  CONTRACTS, GAME_ENGINE_ABI, MINT_PRICE, NATIVE_SYMBOL,
   PARTNER_ERC721_ABI, PUBLIC_MAX_PER_WALLET, ZERO_ADDRESS,
 } from '@/lib/constants';
 import { Header } from './Header';
@@ -48,6 +48,7 @@ export function MintStage() {
   const verifyLiveStage = useLiveStageLatch();
   const { address } = useAccount();
   const minted = Number(p.totalMinted);
+  const maxSupply = Number(p.maxSupply || 2000n);
   const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
   useEffect(() => { const t = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 1000); return () => clearInterval(t); }, []);
   const backstop = Number(p.startBackstop);
@@ -108,7 +109,7 @@ export function MintStage() {
         <Kicker>{p.preMintEnd ? 'public mint / phase 02' : 'community pre-mint / phase 01'}</Kicker><MorphTicker/>
         <div className="grid items-center gap-7 md:grid-cols-[1fr_.72fr]">
           <div>
-            <h1 className="mint-title idle-glitch" data-text="2,000 WILL ENTER."><Scramble loop>2,000 WILL ENTER.</Scramble><br/><span>HOW MANY WILL LEAVE?</span></h1>
+            <h1 className="mint-title idle-glitch" data-text={`${maxSupply.toLocaleString()} WILL ENTER.`}><Scramble loop>{`${maxSupply.toLocaleString()} WILL ENTER.`}</Scramble><br/><span>HOW MANY WILL LEAVE?</span></h1>
             <p className="hero-sub mt-5">STAY ALIVE. HOWEVER YOU CAN.</p>
             <div className="mini-rule-grid"><span><b>01</b> 24H CLOCK</span><span><b>02</b> FEED OR FAST</span><span><b>03</b> POISON</span><span><b>04</b> DEATH = FOOD</span></div>
             <Link href="/rules" className="read-rules">READ BEFORE YOU MINT <span>OPEN RULES →</span></Link>
@@ -119,7 +120,7 @@ export function MintStage() {
 
       <Panel className="mint-console p-6 md:p-8">
         <Kicker>{p.preMintEnd ? 'public mint console' : 'community access console'}</Kicker>
-        <div className="console-meter"><div className="flex justify-between"><span>MINTED</span><b>{minted.toLocaleString()} / {MAX_SUPPLY.toLocaleString()}</b></div><div className="bar mt-3"><i style={{ width: `${pct(minted, MAX_SUPPLY)}%` }}/></div></div>
+        <div className="console-meter"><div className="flex justify-between"><span>MINTED</span><b>{minted.toLocaleString()} / {maxSupply.toLocaleString()}</b></div><div className="bar mt-3"><i style={{ width: `${pct(minted, maxSupply)}%` }}/></div></div>
         <div className="console-block"><span>GAME START</span>{backstop ? <strong className="countdown-color">{backstopReached ? 'BACKSTOP REACHED' : fmt(remaining)}</strong> : <strong>SELLOUT / BACKSTOP</strong>}<small>Sellout starts automatically. Backstop can be started permissionlessly.</small></div>
         {backstopReached
           ? <TxButton label="START GAME" address={CONTRACTS.gameEngine} abi={GAME_ENGINE_ABI} functionName="ensureStarted" onConfirmed={verifyLiveStage} className="mt-5 w-full danger-pulse"/>
@@ -131,7 +132,7 @@ export function MintStage() {
     </div>
 
     {!p.preMintEnd && !backstopReached && <CommunityDirectory communities={communities} balanceFor={balanceFor} walletMintedFor={walletCommunityMintedFor} connected={!!address}/>} 
-    <div className="retro-marquee" aria-hidden="true"><div>{p.preMintEnd ? 'PUBLIC MINT // MAX 4 / WALLET // LIVE WALLET COUNTER // 0.004 APE // 95% POT //' : 'COMMUNITY PRE-MINT // INVITED NFT HOLDERS // LIVE WALLET COUNTER // DYNAMIC PRICE //'} UNREVEALED // SELLOUT =&gt; GAME_START // 24:00:00 // FOOD GETS WORSE //</div></div>
+    <div className="retro-marquee" aria-hidden="true"><div>{p.preMintEnd ? `PUBLIC MINT // MAX 4 / WALLET // LIVE WALLET COUNTER // 0.004 ${NATIVE_SYMBOL} // 95% POT //` : 'COMMUNITY PRE-MINT // INVITED NFT HOLDERS // LIVE WALLET COUNTER // DYNAMIC PRICE //'} UNREVEALED // SELLOUT =&gt; GAME_START // 24:00:00 // FOOD GETS WORSE //</div></div>
   </main></>;
 }
 
@@ -149,7 +150,7 @@ function PublicMint() {
   });
   const used = Number(walletMintRead.data ?? 0n);
   const walletRemaining = Math.max(0, PUBLIC_MAX_PER_WALLET - used);
-  const supplyRemaining = Math.max(0, MAX_SUPPLY - Number(p.totalMinted));
+  const supplyRemaining = Math.max(0, Number(p.maxSupply || 2000n) - Number(p.totalMinted));
   const maxQty = Math.max(0, Math.min(walletRemaining, supplyRemaining));
   useEffect(() => { if (maxQty > 0 && qty > maxQty) setQty(maxQty); }, [maxQty, qty]);
   const exhausted = !!address && walletRemaining === 0;
@@ -191,7 +192,7 @@ function CommunityPreMint({ communities, balanceFor, walletMintedFor, connected 
   const communityRemaining = c ? Math.max(0, c.maxTotalAmountAllowed - c.amountMinted) : 0;
   const walletUsed = c ? Number(walletMintedFor(c.id)) : 0;
   const walletRemaining = c ? Math.max(0, c.maxPerWallet - walletUsed) : 0;
-  const supplyRemaining = Math.max(0, MAX_SUPPLY - Number(p.totalMinted));
+  const supplyRemaining = Math.max(0, Number(p.maxSupply || 2000n) - Number(p.totalMinted));
   const maxQty = c ? Math.max(0, Math.min(walletRemaining, communityRemaining, supplyRemaining)) : 0;
   useEffect(() => { if (maxQty > 0 && qty > maxQty) setQty(maxQty); }, [maxQty, qty]);
 

@@ -3,7 +3,8 @@ import { FormEvent, useEffect, useState } from 'react';
 import { Header } from '@/components/Header';
 import { Kicker, Panel } from '@/components/Terminal';
 import { Scramble } from '@/components/fx/RetroText';
-import { CONTRACTS, GAME_ENGINE_ABI, INSPECTOR_ABI, ZERO_ADDRESS } from '@/lib/constants';
+import { CONTRACTS, GAME_ENGINE_ABI, GAME_HOUR_SECONDS, INSPECTOR_ABI, ZERO_ADDRESS } from '@/lib/constants';
+import { gameClock } from '@/lib/time';
 import { usePublicClient } from 'wagmi';
 
 type Inspection = {
@@ -12,7 +13,6 @@ type Inspection = {
   visualState: number;
   expiry: number;
   isHungry: boolean;
-  poisonCooldownUntil: number;
   poisonProtectedUntil: number;
   finalBiteDeadline: number;
   deadAt: number;
@@ -24,7 +24,7 @@ type Inspection = {
 };
 
 const STATE = ['UNREVEALED', 'ALIVE', 'FRESH CORPSE', 'ROTTEN CORPSE'];
-const clock = (seconds: number) => { const n=Math.max(0,seconds); const h=Math.floor(n/3600),m=Math.floor(n%3600/60),s=n%60; return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`; };
+const clock = gameClock;
 const short = (a:string) => a ? `${a.slice(0,8)}…${a.slice(-6)}` : '—';
 
 export default function InspectPage(){
@@ -48,7 +48,7 @@ export default function InspectPage(){
         client.readContract({address:CONTRACTS.gameEngine,abi:GAME_ENGINE_ABI,functionName:'s_tokenStates',args:[BigInt(id)]}),
       ]);
       const arr=Array.isArray(state)?state:[];
-      setData({id,owner:String(view.owner),visualState:Number(view.visualState),expiry:Number(view.expiry),isHungry:Boolean(view.isHungry),poisonCooldownUntil:Number(arr[1]||0),poisonProtectedUntil:Number(arr[2]||0),finalBiteDeadline:Number(arr[3]||0),deadAt:Number(arr[4]||0),spoilCheckpoint:Number(arr[5]||0),poweredUntil:Number(arr[6]||0),spoilQ4:Number(arr[7]||0),fasting:Boolean(arr[8]),deathSettled:Boolean(arr[9])});
+      setData({id,owner:String(view.owner),visualState:Number(view.visualState),expiry:Number(view.expiry),isHungry:Boolean(view.isHungry),poisonProtectedUntil:Number(arr[1]||0),finalBiteDeadline:Number(arr[2]||0),deadAt:Number(arr[3]||0),spoilCheckpoint:Number(arr[4]||0),poweredUntil:Number(arr[5]||0),spoilQ4:Number(arr[6]||0),fasting:Boolean(arr[7]),deathSettled:Boolean(arr[8])});
       window.history.replaceState(null,'',`/inspect?token=${id}`);
     }catch(e:any){setError(e?.shortMessage||e?.message||'Token could not be inspected. It may not exist or may have been burned.');}
     finally{setLoading(false)}
@@ -57,9 +57,9 @@ export default function InspectPage(){
   function submit(e:FormEvent){e.preventDefault();void inspect(Number(token));}
   const remain=data?Math.max(0,data.expiry-now):0;
   const finalBiteExpired=Boolean(data&&data.finalBiteDeadline>0&&data.finalBiteDeadline<=now);
-  const logicallyDead=Boolean(data&&data.visualState===1&&(remain<=0||finalBiteExpired));
+  const logicallyDead=Boolean(data&&data.visualState===1&&(finalBiteExpired||(!data.fasting&&remain<=0)));
   const displayState=data?(logicallyDead?2:data.visualState):0;
-  const hungryNow=Boolean(data&&displayState===1&&remain>0&&remain<=12*3600);
+  const hungryNow=Boolean(data&&displayState===1&&remain>0&&remain<=12*GAME_HOUR_SECONDS);
 
   return <><Header/><main className="page-shell">
     <Kicker>public protocol tool / canonical read</Kicker>
@@ -95,7 +95,6 @@ export default function InspectPage(){
         <Kicker>combat / corpse telemetry</Kicker>
         <div className="mt-5 space-y-3">
           <Read label="POISON SHIELD" value={displayState===1?(data.fasting?'DOWN':data.poisonProtectedUntil>now?`UP · ${clock(data.poisonProtectedUntil-now)}`:'DOWN'):'N/A'}/>
-          <Read label="POISON COOLDOWN" value={displayState===1?(data.poisonCooldownUntil>now?clock(data.poisonCooldownUntil-now):'READY'):'N/A'}/>
           <Read label="FRIDGE" value={data.poweredUntil>now?`ON · ${clock(data.poweredUntil-now)}`:'OFF'}/>
           <Read label="DEAD AT" value={data.deadAt?new Date(data.deadAt*1000).toLocaleString():'NOT MATERIALIZED'}/>
           <Read label="SPOIL Q4" value={data.spoilQ4.toLocaleString()}/>

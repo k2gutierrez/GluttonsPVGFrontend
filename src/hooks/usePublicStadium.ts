@@ -5,7 +5,7 @@ import { usePublicClient } from 'wagmi';
 import { useAtomValue } from 'jotai';
 import type { Address } from 'viem';
 import { protocolAtom } from '@/state/game';
-import { CONTRACTS, GAME_ENGINE_ABI, INSPECTOR_ABI, MAX_SUPPLY, ZERO_ADDRESS } from '@/lib/constants';
+import { CONTRACTS, GAME_ENGINE_ABI, GAME_HOUR_SECONDS, INSPECTOR_ABI, ZERO_ADDRESS } from '@/lib/constants';
 
 export const STADIUM_BATCH_SIZE = 50;
 const REFRESH_EVERY_MS = 2500;
@@ -45,9 +45,11 @@ function classify(view: any, state: any, now: number): StadiumStatus {
   if (visualState === 3) return 'ROTTEN';
   if (visualState === 0) return 'LOADING';
   const arr = Array.isArray(state) ? state : [];
-  const finalBiteDeadline = Number(arr[3] || 0);
-  const fasting = Boolean(arr[8]);
+  const finalBiteDeadline = Number(arr[2] || 0);
+  const fasting = Boolean(arr[7]);
   if (finalBiteDeadline > now) return 'FINAL_BITE';
+  if (finalBiteDeadline > 0 && finalBiteDeadline <= now) return 'FRESH';
+  if (!fasting && Number(view.expiry || 0) > 0 && Number(view.expiry) <= now) return 'FRESH';
   if (fasting) return 'FASTING';
   if (Boolean(view.isHungry)) return 'HUNGRY';
   return 'ALIVE';
@@ -56,7 +58,9 @@ function classify(view: any, state: any, now: number): StadiumStatus {
 export function usePublicStadium() {
   const client = usePublicClient();
   const p = useAtomValue(protocolAtom);
-  const totalMinted = Math.min(MAX_SUPPLY, Number(p.totalMinted || 0n));
+  const supplySource = p.gameStart > 0n && p.startingPopulation > 0n ? p.startingPopulation : p.totalMinted;
+  const totalMinted = Math.max(0, Number(supplySource));
+  const matrixSupply = p.startingPopulation > 0n ? Number(p.startingPopulation) : totalMinted;
   const [tokens, setTokens] = useState<Record<number, StadiumToken>>({});
   const [scanned, setScanned] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -85,9 +89,9 @@ export function usePublicStadium() {
         visualState: Number(view?.visualState ?? -1),
         expiry: Number(view?.expiry || 0),
         isHungry: Boolean(view?.isHungry),
-        poisonProtectedUntil: Number(arr[2] || 0),
-        finalBiteDeadline: Number(arr[3] || 0),
-        fasting: Boolean(arr[8]),
+        poisonProtectedUntil: Number(arr[1] || 0),
+        finalBiteDeadline: Number(arr[2] || 0),
+        fasting: Boolean(arr[7]),
         status: classify(view, state, now),
         loaded: true,
       } satisfies StadiumToken;
@@ -131,7 +135,7 @@ export function usePublicStadium() {
   }, [client, totalMinted, readBatch]);
 
   // Once the initial progressive scan finishes, rotate through one small page
-  // at a time. The page stays alive without ever asking Curtis for 2,000 token
+  // at a time. The page stays alive without ever asking Curtis for all-token
   // states in a single RPC payload.
   useEffect(() => {
     if (!client || loading || scanned < totalMinted || totalMinted <= 0) return;
@@ -162,7 +166,7 @@ export function usePublicStadium() {
   }, [client, loading, scanned, totalMinted, readBatch]);
 
   const list = useMemo(() => {
-    return Array.from({ length: MAX_SUPPLY }, (_, i) => {
+    return Array.from({ length: matrixSupply }, (_, i) => {
       const tokenId = i + 1;
       if (tokenId > totalMinted) return { id: tokenId, visualState: -2, expiry: 0, isHungry: false, poisonProtectedUntil: 0, finalBiteDeadline: 0, fasting: false, status: 'UNMINTED' as const, loaded: true };
       const t = tokens[tokenId];
@@ -171,13 +175,15 @@ export function usePublicStadium() {
       let status = t.status;
       if (t.visualState === 1) {
         if (t.finalBiteDeadline > now) status = 'FINAL_BITE';
+        else if (t.finalBiteDeadline > 0 && t.finalBiteDeadline <= now) status = 'FRESH';
+        else if (!t.fasting && t.expiry > 0 && t.expiry <= now) status = 'FRESH';
         else if (t.fasting) status = 'FASTING';
-        else if (t.expiry > 0 && t.expiry - now <= 12 * 3600 && t.expiry > now) status = 'HUNGRY';
+        else if (t.expiry > 0 && t.expiry - now <= 12 * GAME_HOUR_SECONDS && t.expiry > now) status = 'HUNGRY';
         else status = 'ALIVE';
       }
       return { ...t, status };
     });
-  }, [tokens, totalMinted, now]);
+  }, [tokens, totalMinted, matrixSupply, now]);
 
   return { list, totalMinted, scanned, loading, error, batchSize: STADIUM_BATCH_SIZE };
 }

@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 const code = [
   '0x19A7 // HUNGER_CLOCK', 'FEED(tokenId)', '01001000 01010101 01001110 01000111 01000101 01010010',
   'METABOLISM::DECAY', 'ownerOf(tokenId)', 'KEEP_FRESH // 24H', 'POISON_TARGET != SELF',
-  'THE_POT_KEEPS_GROWING', 'DEAD => FRESH => ROTTEN', 'CURTIS::33111', 'STAY_ALIVE()',
+  'THE_POT_KEEPS_GROWING', 'DEAD => FRESH => ROTTEN', 'ONCHAIN::LIVE', 'STAY_ALIVE()',
 ];
 
 export function AmbientFX() {

@@ -9,7 +9,7 @@ export function humanError(e: any) {
   const s = String(e?.shortMessage || e?.message || e);
   const map: [string, string][] = [
     ['NotHungry', 'That action is not available at the current hunger clock.'], ['ClockTooLow', 'This clock is too low for that action.'],
-    ['OnCooldown', 'Poison is still on cooldown.'], ['Protected', 'Target is Poison Protected. Wait for the shield timer to expire.'], ['SelfPoison', 'You cannot poison the same Glutton.'],
+['Protected', 'Target is Poison Protected. Wait for the shield timer to expire.'], ['SelfPoison', 'You cannot poison the same Glutton.'],
     ['MintClosed', 'Mint is closed. Game Start cannot be extended.'], ['MaxSupplyExceeded', 'All Gluttons have entered.'],
     ['NotOwner', 'Your connected wallet does not own the required Glutton.'], ['InvalidValue', 'Wrong transaction value. Refresh and retry.'],
     ['InvalidMintValue', 'Wrong mint value. Refresh and retry.'], ['InvalidState', 'That action is not legal in the current token or game state.'],
