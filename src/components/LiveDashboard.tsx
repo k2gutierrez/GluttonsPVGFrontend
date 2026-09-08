@@ -35,7 +35,6 @@ export function LiveDashboard() {
       <Metric title="METABOLISM" value={`BAR ${bars}`} sub={`${p.totalNormalFeeds.toLocaleString()} VALID FEEDS`}/>
       <Metric title="NEXT" value={next} small/>
     </div>
-    <div className="mt-4 space-y-4"><LiveMatrix/></div>
     <div className="mt-4 grid gap-4 lg:grid-cols-[1.45fr_.55fr]">
       <Panel className="p-5 md:p-7">
         <Kicker>the machine / current state</Kicker>
@@ -52,6 +51,7 @@ export function LiveDashboard() {
         <div className="mt-5"><TxButton label="FLUSH WETH → POT" address={CONTRACTS.royaltyTreasury} abi={ROYALTY_TREASURY_ABI} functionName="flushWETH" className="w-full secondary-action"/></div>
       </Panel>
     </div>
+    <div className="mt-4 space-y-4"><LiveMatrix/></div>
     {p.isSettled && <Panel className="mt-4 verdict-panel p-7"><Kicker>the table is closed</Kicker><h2>SETTLED.</h2><p>Winning wallets can pull their proportional ETH/WETH prize.</p><TxButton label="CLAIM REWARDS" address={CONTRACTS.prizeVault} abi={PRIZE_VAULT_ABI} functionName="claimPrize"/></Panel>}
     <div className="retro-marquee" aria-hidden="true"><div>ALIVE::{alive} // POT::{potValue} // MEAL::{meal.toFixed(2)}H // BAR::{bars} // PHASE::{phase} // BLOCK::{block.data?.toString() || '...'} //</div></div>
   </main></>;
