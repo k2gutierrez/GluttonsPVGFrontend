@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAccount, usePublicClient, useWaitForTransactionReceipt, useWriteContract } from 'wagmi';
 import { toast } from 'sonner';
 import type { Abi, Address } from 'viem';
@@ -26,16 +26,28 @@ export function humanError(e: any) {
   return map.find(([k]) => s.includes(k))?.[1] || 'Transaction failed or was rejected. No confirmed state changed.';
 }
 
-export function TxButton({ label, address, abi, functionName, args = [], value, disabled = false, className = '', onConfirmed, preflight = false }:
-{ label: string; address: Address; abi: Abi | readonly unknown[]; functionName: string; args?: readonly unknown[]; value?: bigint; disabled?: boolean; className?: string; onConfirmed?: () => void; preflight?: boolean }) {
+export function TxButton({ label, address, abi, functionName, args = [], value, disabled = false, className = '', onConfirmed, preflight = false, successLabel = 'CONFIRMED ✓', successMs = 2200 }:
+{ label: string; address: Address; abi: Abi | readonly unknown[]; functionName: string; args?: readonly unknown[]; value?: bigint; disabled?: boolean; className?: string; onConfirmed?: () => void; preflight?: boolean; successLabel?: string; successMs?: number }) {
   const { address: account } = useAccount();
   const client = usePublicClient();
-  const w = useWriteContract(); const receipt = useWaitForTransactionReceipt({ hash: w.data }); const fired = useRef<string | undefined>(undefined);
-  useEffect(() => { if (receipt.isSuccess && w.data && fired.current !== w.data) { fired.current = w.data; toast.success('Confirmed onchain.'); onConfirmed?.(); } }, [receipt.isSuccess, w.data, onConfirmed]);
+  const w = useWriteContract();
+  const receipt = useWaitForTransactionReceipt({ hash: w.data });
+  const fired = useRef<string | undefined>(undefined);
+  const [justConfirmed, setJustConfirmed] = useState(false);
+
+  useEffect(() => {
+    if (receipt.isSuccess && w.data && fired.current !== w.data) {
+      fired.current = w.data;
+      setJustConfirmed(true);
+      toast.success('Confirmed onchain.');
+      onConfirmed?.();
+      const timer = setTimeout(() => setJustConfirmed(false), successMs);
+      return () => clearTimeout(timer);
+    }
+  }, [receipt.isSuccess, w.data, onConfirmed, successMs]);
+
   const click = async () => {
     try {
-      // Optional last-moment eth_call. Poison uses this so a target that became
-      // protected/dead between the UI read and the click never opens a doomed wallet tx.
       if (preflight) {
         if (!client || !account) { toast.error('Connect the wallet and retry.'); return; }
         await client.simulateContract({ account, address, abi: abi as Abi, functionName, args, value } as any);
@@ -46,5 +58,6 @@ export function TxButton({ label, address, abi, functionName, args = [], value, 
     }
   };
   const off = disabled || address === ZERO_ADDRESS || w.isPending || receipt.isLoading;
-  return <button data-fx-sound onClick={click} disabled={off} className={`action-btn ${className}`}>{w.isPending || receipt.isLoading ? 'CONFIRMING…' : receipt.isSuccess ? 'CONFIRMED ✓' : label}</button>;
+  const buttonText = w.isPending || receipt.isLoading ? 'CONFIRMING…' : justConfirmed ? successLabel : label;
+  return <button data-fx-sound onClick={click} disabled={off} className={`action-btn ${className}`}>{buttonText}</button>;
 }

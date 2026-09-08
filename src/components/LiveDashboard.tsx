@@ -9,6 +9,7 @@ import { Panel, Kicker } from './Terminal';
 import { Header } from './Header';
 import { TxButton } from './TxButton';
 import { MorphTicker, Scramble, WeightWord } from '@/components/fx/RetroText';
+import { LiveMatrix } from '@/components/LiveMatrix';
 
 const pct = (n: number, d: number) => d ? Math.max(0, Math.min(100, n / d * 100)) : 0;
 export function LiveDashboard() {
@@ -34,6 +35,7 @@ export function LiveDashboard() {
       <Metric title="METABOLISM" value={`BAR ${bars}`} sub={`${p.totalNormalFeeds.toLocaleString()} VALID FEEDS`}/>
       <Metric title="NEXT" value={next} small/>
     </div>
+    <div className="mt-4 space-y-4"><LiveMatrix/></div>
     <div className="mt-4 grid gap-4 lg:grid-cols-[1.45fr_.55fr]">
       <Panel className="p-5 md:p-7">
         <Kicker>the machine / current state</Kicker>
@@ -46,7 +48,7 @@ export function LiveDashboard() {
       </Panel>
       <Panel className="p-5 md:p-7">
         <Kicker>protocol access</Kicker>
-        <div className="live-links"><Link href="/my-gluttons"><span>01</span><b>MY GLUTTONS</b><small>Protect positions. Manage food.</small></Link><Link href="/rules"><span>02</span><b>RULES</b><small>Read the machine.</small></Link><Link href="/inspect"><span>03</span><b>INSPECT</b><small>Canonical state by token ID.</small></Link></div>
+        <div className="live-links"><Link href="/my-gluttons"><span>01</span><b>MY GLUTTONS</b><small>Protect positions. Manage food.</small></Link><Link href="/leaderboard"><span>02</span><b>LEADERBOARD</b><small>Longest clocks. Public survival status.</small></Link><Link href="/rules"><span>03</span><b>RULES</b><small>Read the machine.</small></Link></div>
         <div className="mt-5"><TxButton label="FLUSH WETH → POT" address={CONTRACTS.royaltyTreasury} abi={ROYALTY_TREASURY_ABI} functionName="flushWETH" className="w-full secondary-action"/></div>
       </Panel>
     </div>

@@ -94,7 +94,7 @@ export default function InspectPage(){
       <Panel className="p-5 md:p-7">
         <Kicker>combat / corpse telemetry</Kicker>
         <div className="mt-5 space-y-3">
-          <Read label="POISON PROTECTION" value={displayState===1?(data.poisonProtectedUntil>now?clock(data.poisonProtectedUntil-now):'NONE'):'N/A'}/>
+          <Read label="POISON SHIELD" value={displayState===1?(data.fasting?'DOWN':data.poisonProtectedUntil>now?`UP · ${clock(data.poisonProtectedUntil-now)}`:'DOWN'):'N/A'}/>
           <Read label="POISON COOLDOWN" value={displayState===1?(data.poisonCooldownUntil>now?clock(data.poisonCooldownUntil-now):'READY'):'N/A'}/>
           <Read label="FRIDGE" value={data.poweredUntil>now?`ON · ${clock(data.poweredUntil-now)}`:'OFF'}/>
           <Read label="DEAD AT" value={data.deadAt?new Date(data.deadAt*1000).toLocaleString():'NOT MATERIALIZED'}/>

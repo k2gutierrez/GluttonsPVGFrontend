@@ -1,3 +1,5 @@
+# Gluttons Frontend — FINAL v0.1
+
 # Gluttons Frontend Curtis V2.6
 
 **Poison Target Lock update.** The complete V2.4 frontend remains intact. Poison now performs a live canonical target read before enabling the transaction, shows the target life clock and Poison Shield countdown, blocks protected/dead/final-bite/too-low-clock targets in the UI, polls the target every 5 seconds, and runs a final `simulateContract` preflight immediately before opening the wallet.
@@ -138,3 +140,9 @@ See `BLUEPRINT_DELTA_V2.3.md` and `IMPLEMENTATION_NOTES.md` for the exact contra
 - Final-table scanning was reduced from 200-token calls to 50-token calls as an additional Curtis RPC safety measure.
 
 For a stress-test wallet holding all 2,000 Gluttons, the expected behavior is: load 50 -> render -> scroll -> load next 50, rather than issuing one 2,000-token RPC payload.
+
+---
+
+## v0.1 — Live Stadium
+
+This directory includes the complete frontend. v0.1 adds the fixed 2,000-cell Live Glutton Matrix, compact + full Survival Board, Corpse Freshness / ROTS IN UX, separate Fridge countdown, Poison success feedback, Shield UP/DOWN terminology, transient transaction confirmations, and removes the player-facing Reap tool. See `BUILD_NOTES_FINAL v0.1.md` for the implementation and Curtis test checklist.
