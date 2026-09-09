@@ -15,6 +15,15 @@ export type ProtocolView = {
   preMintEnd: boolean;
   communityMintPrice: bigint;
   synced: boolean;
+  stageResolved: boolean;
+  rpcDegraded: boolean;
+  lastSuccessfulSyncAt: number;
+  gameHourSeconds: bigint;
+  phaseCode: number;
+  lastSupperWarningAt: bigint;
+  lastSupperAt: bigint;
+  lastSupperThreshold: bigint;
+  truceThreshold: bigint;
   /**
    * Frontend one-way latch. Once LIVE is observed, the UI never renders
    * Community Pre-Mint or Public Mint again during this deployment.
@@ -29,7 +38,7 @@ export const protocolAtom = atom<ProtocolView>({
   isSettled: false,
   currentPhase: 'PRE_GAME',
   totalMinted: 0n,
-  maxSupply: 2000n,
+  maxSupply: 0n,
   gameStart: 0n,
   startingPopulation: 0n,
   totalNormalFeeds: 0n,
@@ -38,5 +47,14 @@ export const protocolAtom = atom<ProtocolView>({
   preMintEnd: false,
   communityMintPrice: 4_000_000_000_000_000n,
   synced: false,
+  stageResolved: false,
+  rpcDegraded: false,
+  lastSuccessfulSyncAt: 0,
+  gameHourSeconds: 0n,
+  phaseCode: 0,
+  lastSupperWarningAt: 0n,
+  lastSupperAt: 0n,
+  lastSupperThreshold: 0n,
+  truceThreshold: 0n,
   liveLocked: false,
 });

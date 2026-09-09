@@ -6,6 +6,7 @@ import { useAtomValue } from 'jotai';
 import type { Address } from 'viem';
 import { protocolAtom } from '@/state/game';
 import { CONTRACTS, GAME_ENGINE_ABI, GAME_HOUR_SECONDS, INSPECTOR_ABI, ZERO_ADDRESS } from '@/lib/constants';
+import { resilientMulticall } from '@/lib/rpc';
 
 export const STADIUM_BATCH_SIZE = 50;
 const REFRESH_EVERY_MS = 2500;
@@ -58,6 +59,7 @@ function classify(view: any, state: any, now: number): StadiumStatus {
 export function usePublicStadium() {
   const client = usePublicClient();
   const p = useAtomValue(protocolAtom);
+  const gameHourSeconds = Number(p.gameHourSeconds > 0n ? p.gameHourSeconds : BigInt(GAME_HOUR_SECONDS));
   const supplySource = p.gameStart > 0n && p.startingPopulation > 0n ? p.startingPopulation : p.totalMinted;
   const totalMinted = Math.max(0, Number(supplySource));
   const matrixSupply = p.startingPopulation > 0n ? Number(p.startingPopulation) : totalMinted;
@@ -78,7 +80,7 @@ export function usePublicStadium() {
       { address: CONTRACTS.inspector, abi: INSPECTOR_ABI, functionName: 'getTokenView', args: [BigInt(id)] },
       { address: CONTRACTS.gameEngine, abi: GAME_ENGINE_ABI, functionName: 's_tokenStates', args: [BigInt(id)] },
     ])) as any;
-    const reads = await client.multicall({ allowFailure: true, deployless: true, contracts });
+    const reads = await resilientMulticall(client, contracts);
     return ids.map((id, index) => {
       const view: any = result(reads[index * 2]);
       const state: any = result(reads[index * 2 + 1]);
@@ -178,14 +180,14 @@ export function usePublicStadium() {
         else if (t.finalBiteDeadline > 0 && t.finalBiteDeadline <= now) status = 'FRESH';
         else if (!t.fasting && t.expiry > 0 && t.expiry <= now) status = 'FRESH';
         else if (t.fasting) status = 'FASTING';
-        else if (t.expiry > 0 && t.expiry - now <= 12 * GAME_HOUR_SECONDS && t.expiry > now) status = 'HUNGRY';
+        else if (t.expiry > 0 && t.expiry - now <= 12 * gameHourSeconds && t.expiry > now) status = 'HUNGRY';
         else status = 'ALIVE';
       }
       return { ...t, status };
     });
-  }, [tokens, totalMinted, matrixSupply, now]);
+  }, [tokens, totalMinted, matrixSupply, now, gameHourSeconds]);
 
-  return { list, totalMinted, scanned, loading, error, batchSize: STADIUM_BATCH_SIZE };
+  return { list, totalMinted, scanned, loading, error, batchSize: STADIUM_BATCH_SIZE, gameHourSeconds };
 }
 
 export function stadiumRemaining(t: StadiumToken, now = Math.floor(Date.now() / 1000)) {

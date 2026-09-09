@@ -1,5 +1,5 @@
 import { defineChain, type Address } from 'viem';
-import { ABIS } from './Contracs_and_ABIs';
+import { contracts, ABIS } from './Contracs_and_ABIs';
 
 // ─────────────────────────────────────────────────────────────
 // GLUTTONS FRONTEND SINGLE CONFIG SURFACE
@@ -14,7 +14,7 @@ export const curtis = defineChain({
   id: 33111,
   name: 'ApeChain Curtis',
   nativeCurrency: { name: 'ApeCoin', symbol: 'APE', decimals: 18 },
-  rpcUrls: { default: { http: ['https://curtis.rpc.caldera.xyz/http'] } },
+  rpcUrls: { default: { http: [process.env.NEXT_PUBLIC_CURTIS_RPC_URL || 'https://curtis.rpc.caldera.xyz/http'] } },
   blockExplorers: { default: { name: 'Curtis ApeScan', url: 'https://curtis.apescan.io' } },
   testnet: true,
 });
@@ -34,12 +34,12 @@ export const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000' as Addr
 const addr = (v?: string) => ((v && /^0x[a-fA-F0-9]{40}$/.test(v)) ? v : ZERO_ADDRESS) as Address;
 
 export const CONTRACTS = {
-  gluttonNFT: addr(process.env.NEXT_PUBLIC_GLUTTON_NFT_ADDRESS),
-  gameEngine: addr(process.env.NEXT_PUBLIC_GAME_ENGINE_ADDRESS),
-  inspector: addr(process.env.NEXT_PUBLIC_INSPECTOR_ADDRESS),
-  prizeVault: addr(process.env.NEXT_PUBLIC_PRIZE_VAULT_ADDRESS),
-  pvgTreasury: addr(process.env.NEXT_PUBLIC_PVG_TREASURY_ADDRESS),
-  royaltyTreasury: addr(process.env.NEXT_PUBLIC_ROYALTY_TREASURY_ADDRESS),
+  gluttonNFT: addr(contracts.GluttonsNFT), // addr(process.env.NEXT_PUBLIC_GLUTTON_NFT_ADDRESS),
+  gameEngine: addr(contracts.gameEngine), // addr(process.env.NEXT_PUBLIC_GAME_ENGINE_ADDRESS),
+  inspector: addr(contracts.inspector), // addr(process.env.NEXT_PUBLIC_INSPECTOR_ADDRESS),
+  prizeVault: addr(contracts.prizeVault), // addr(process.env.NEXT_PUBLIC_PRIZE_VAULT_ADDRESS),
+  pvgTreasury: addr(contracts.pvgTreasury), // addr(process.env.NEXT_PUBLIC_PVG_TREASURY_ADDRESS),
+  royaltyTreasury: addr(contracts.royaltyTreasury) // addr(process.env.NEXT_PUBLIC_ROYALTY_TREASURY_ADDRESS),
 } as const;
 
 export const MINT_PRICE = 4_000_000_000_000_000n;
@@ -86,7 +86,6 @@ const COMMUNITY_COMPONENTS = [
 export const GAME_ENGINE_ABI = ABIS.GameEngine;
 
 export const GLUTTON_NFT_ABI = ABIS.Nft;
-
 // Fast client-side discovery of invited NFT ownership.
 // The reviewed GameEngine independently re-verifies balanceOf(msg.sender)
 // inside preMint(), so this preview is UX only — contract state is authoritative.

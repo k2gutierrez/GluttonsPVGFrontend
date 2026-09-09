@@ -48,7 +48,7 @@ export function MintStage() {
   const verifyLiveStage = useLiveStageLatch();
   const { address } = useAccount();
   const minted = Number(p.totalMinted);
-  const maxSupply = Number(p.maxSupply || 2000n);
+  const maxSupply = Number(p.maxSupply);
   const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
   useEffect(() => { const t = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 1000); return () => clearInterval(t); }, []);
   const backstop = Number(p.startBackstop);
@@ -102,6 +102,8 @@ export function MintStage() {
     return r?.status === 'success' ? BigInt(r.result ?? 0n) : 0n;
   };
 
+  if (!p.synced) return <><Header/><main className="page-shell mint-page"><Panel className="protocol-hard-sync"><Kicker>mint deployment confirmed</Kicker><h1>RESTORING MINT STATE.</h1><p>Mint phase, supply, price and backstop stay hidden until one coherent GameEngine snapshot arrives.</p><div className="endgame-sync-line"><i/><span>READING MINT PHASE · SUPPLY · PRICE · BACKSTOP</span></div></Panel></main></>;
+
   return <><Header/><main className="page-shell mint-page">
     <div className="ambient-word ambient-a"><WeightWord word={p.preMintEnd ? 'MINT' : 'ACCESS'}/></div><div className="ambient-word ambient-b"><FlipWord word="FEED"/></div>
     <div className="grid gap-4 lg:grid-cols-[1.05fr_.95fr]">
@@ -150,7 +152,7 @@ function PublicMint() {
   });
   const used = Number(walletMintRead.data ?? 0n);
   const walletRemaining = Math.max(0, PUBLIC_MAX_PER_WALLET - used);
-  const supplyRemaining = Math.max(0, Number(p.maxSupply || 2000n) - Number(p.totalMinted));
+  const supplyRemaining = Math.max(0, Number(p.maxSupply) - Number(p.totalMinted));
   const maxQty = Math.max(0, Math.min(walletRemaining, supplyRemaining));
   useEffect(() => { if (maxQty > 0 && qty > maxQty) setQty(maxQty); }, [maxQty, qty]);
   const exhausted = !!address && walletRemaining === 0;
@@ -192,7 +194,7 @@ function CommunityPreMint({ communities, balanceFor, walletMintedFor, connected 
   const communityRemaining = c ? Math.max(0, c.maxTotalAmountAllowed - c.amountMinted) : 0;
   const walletUsed = c ? Number(walletMintedFor(c.id)) : 0;
   const walletRemaining = c ? Math.max(0, c.maxPerWallet - walletUsed) : 0;
-  const supplyRemaining = Math.max(0, Number(p.maxSupply || 2000n) - Number(p.totalMinted));
+  const supplyRemaining = Math.max(0, Number(p.maxSupply) - Number(p.totalMinted));
   const maxQty = c ? Math.max(0, Math.min(walletRemaining, communityRemaining, supplyRemaining)) : 0;
   useEffect(() => { if (maxQty > 0 && qty > maxQty) setQty(maxQty); }, [maxQty, qty]);
 

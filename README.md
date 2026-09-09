@@ -1,49 +1,27 @@
-# Gluttons Frontend — FINAL CANONICAL v1.0
+# Gluttons Frontend FINAL CANONICAL v1.1 — GAME COMPLETE
 
-This is the complete frontend handoff for Carlos. It supersedes every earlier v2.x / v0.x frontend package.
+This is the current frontend handoff for Carlos.
 
-## Stack
-Next.js App Router (`src/`) · TypeScript · Tailwind · Wagmi · RainbowKit · Viem · Jotai.
+Start with:
+1. Copy `.env.example` to `.env.local`.
+2. Insert the addresses from ONE deployment only.
+3. `npm install`
+4. `npm run check`
+5. `npm run build`
+6. `npm run dev`
 
-## Canonical behavior included
-- Awareness -> Community Pre-Mint -> Public Mint -> irreversible LIVE.
-- `s_gameStart > 0` is the permanent LIVE latch. The local cache key is deployment-address-specific, so a new contract deployment cannot inherit the previous deployment's LIVE state.
-- Runtime supply. Pre-game reads `GameEngine.MAX_SUPPLY()`; after Game Start inventory/matrix geometry uses `S`. A 100-token Curtis deployment and 2,000-token mainnet deployment use the same code.
-- FASTING survives 0H before Last Supper. Failed Final Bite is death. Normal non-Fasting expiry is death.
-- Poison has **NO attacker cooldown**. Attacker must have >1 game-hour and loses 1H. Normal target must have >1H and unprotected; protection/shield is read from `poisonProtectedUntil` (canonical 10H). Poisoning FASTING triggers Final Bite.
-- Canonical TokenState ABI has no `poisonCooldownUntil`.
-- No player-facing Reap / Register Death / Sync Corpse action. Death resolves to Fresh; corpse actions rely on canonical backend synchronization.
-- Freshness bar + ROTS IN + separate Fridge timer. KEEP FRESH slows spoilage and never resets freshness.
-- LIVE order: global phase/progress -> live matrix -> compact leaderboard. Full `/leaderboard` exists separately.
-- Matrix population is deployment-sized, fixed by tokenId, and never reorders. Fresh/Rotten remain visible; consumed/burned becomes empty/ash.
-- Inventory is wallet-owned only, paginated, RPC-resilient, and lazy-hydrates metadata after state cards paint.
-- Responsive: page width never exceeds viewport; no horizontal page scroll; mobile leaderboard becomes cards.
+The frontend reads `GameEngine.GAME_HOUR()` and `MAX_SUPPLY()` dynamically. `NEXT_PUBLIC_GAME_HOUR_SECONDS` remains a boot/display fallback and should still match the deployment.
 
-## Configure
-Copy `.env.example` to `.env.local` and set current deployment addresses.
+## Read these before deploy
+- `UX_STATE_MATRIX_FINAL_v1.1.md` — every macro stage, token state, button, copy, margin, effect and transition.
+- `BUILD_NOTES_FINAL_GAME_COMPLETE_v1.1.md` — delta from v1.0.2.
+- `docs/contracts/` — corrected Curtis reference contracts used for this integration.
 
-For accelerated Curtis where **1 real minute = 1 game hour**:
-```env
-NEXT_PUBLIC_CHAIN_MODE=curtis
-NEXT_PUBLIC_GAME_HOUR_SECONDS=60
-```
+## Trust rule
+If chain state is unknown, the UI says **SYNCING**. It never invents PRE_GAME, 0 supply, 0 Alive or a fake phase.
 
-For Ethereum mainnet:
-```env
-NEXT_PUBLIC_CHAIN_MODE=ethereum
-NEXT_PUBLIC_GAME_HOUR_SECONDS=3600
-NEXT_PUBLIC_ETHEREUM_RPC_URL=YOUR_RPC
-```
+## Mainnet operational note
+The player UI intentionally has no Reap gameplay button. A production keeper/batcher is still required to materialize permissionless logical deaths so `s_aliveCount` and phase accounting stay current. The Matrix detects and visibly reports accounting lag.
 
-## Run
-```bash
-npm install
-npm run check
-npm run build
-npm run dev
-```
-
-## Validation
-See `BUILD_NOTES_FINAL_CANONICAL_V1.0.md` for the deployment checklist.
-
-The deployed ABI/contracts are the source of truth for callable surfaces. The package ABI is aligned to the canonical Sep 2026 TokenState layout and must be updated if Carlos changes that deployed layout.
+## Final bundled contract note
+The `docs/contracts/GameEngine.sol` in this package contains an additional settlement-input validation hardening pass. Its ABI is unchanged, so the frontend integration remains the same. Carlos should compile/test/deploy this bundled revision rather than an earlier v1.0/v1.0.1 GameEngine copy.

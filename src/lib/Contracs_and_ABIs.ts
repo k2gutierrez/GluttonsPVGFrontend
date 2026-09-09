@@ -2,17 +2,17 @@ export const contracts = {
     owner: "0xca067E20db2cDEF80D1c7130e5B71C42c0305529",
     user1: "0x7738797825902889925Ec60dE38d20Cd01250F64",
     user2: "0xA3E187116bcAD707a6b12C7DeC32037a8Be45b1d",
-    weth: "0x78b43697436C98932494dc44DD925E0fEB3223fc",
-    futureRewardsVault: "0x4eeCD17080df53F935E6eFA48a3362beABb9a529",
-    pvgTreasury: "0x302FCb43e95ca1C3125961BFe3247f8eE1fA22d2",
-    gameEngine: "0x2D81c541817769bCb9F087144a453d34eE456719",
-    prizeVault: "0xACB4CdA4A5744f7e48029F2f4212b54f3908420d",
-    royaltyTreasury: "0x54aFB3DC06ea3391c20b98feB4a1f0EB8EDa400c",
-    nft: "0x2bD08310a1E6cdF1B52140eD478B84c9987d987d",
-    inspector: "0x1F9BAF9A55d783713B72e8a9559E8dcAef671C59"
+    weth: "0xe0dA6747D7FC0cabfed4a129cbeA0b0c38c0324F",
+    futureRewardsVault: "0xF6dC5511140bF7778adF0D3EEb2dF63Ed726789e",
+    pvgTreasury: "0x29cb954f0266E667755de33fDE5e516112a83f34",
+    gameEngine: "0x3Caa06F93C033bD019d91dae07413c645A239b97",
+    prizeVault: "0x1a52e7930a0B3381B0c8F8e7B8eED2A308712606",
+    royaltyTreasury: "0x38F01bF22e66f09F76D15050Da335C1730A2c2b2",
+    GluttonsNFT: "0xb682B8c6E0F5a4A20c11fa365D714d330b42194D",
+    inspector: "0x8c4900792e11AE01a447510F7317A6250609d413"
 }
 
-const URIS = [
+const something = [
     "https://arweave.net/r92txKdo5_Z8wHwjLV511pvYs8TaxcJzM7TWf81Nzb0", // pre-reveal
     "https://arweave.net/F7CTP2tlZZgTBQaPQTHiV64y2TIALFgPA27QpTWV694/", // alive
     "https://arweave.net/fcrFqPYYwtLx-QUJmTKJFZDMdCN9y9RCc-7h18CSekM", // dead fresh
@@ -831,6 +831,58 @@ export const GameEngineABI = [
     },
     {
         "type": "function",
+        "name": "GAME_DAY",
+        "inputs": [],
+        "outputs": [
+            {
+                "name": "",
+                "type": "uint64",
+                "internalType": "uint64"
+            }
+        ],
+        "stateMutability": "view"
+    },
+    {
+        "type": "function",
+        "name": "GAME_HOUR",
+        "inputs": [],
+        "outputs": [
+            {
+                "name": "",
+                "type": "uint64",
+                "internalType": "uint64"
+            }
+        ],
+        "stateMutability": "view"
+    },
+    {
+        "type": "function",
+        "name": "LAST_SUPPER_DAY_OFFSET",
+        "inputs": [],
+        "outputs": [
+            {
+                "name": "",
+                "type": "uint64",
+                "internalType": "uint64"
+            }
+        ],
+        "stateMutability": "view"
+    },
+    {
+        "type": "function",
+        "name": "LAST_SUPPER_WARNING_DURATION",
+        "inputs": [],
+        "outputs": [
+            {
+                "name": "",
+                "type": "uint64",
+                "internalType": "uint64"
+            }
+        ],
+        "stateMutability": "view"
+    },
+    {
+        "type": "function",
         "name": "MAX_AMOUNT_PER_WALLET",
         "inputs": [],
         "outputs": [
@@ -1007,6 +1059,19 @@ export const GameEngineABI = [
     },
     {
         "type": "function",
+        "name": "currentPhaseCode",
+        "inputs": [],
+        "outputs": [
+            {
+                "name": "",
+                "type": "uint8",
+                "internalType": "uint8"
+            }
+        ],
+        "stateMutability": "view"
+    },
+    {
+        "type": "function",
         "name": "effectiveExpiry",
         "inputs": [
             {
@@ -1169,6 +1234,45 @@ export const GameEngineABI = [
                 "name": "",
                 "type": "bool",
                 "internalType": "bool"
+            }
+        ],
+        "stateMutability": "view"
+    },
+    {
+        "type": "function",
+        "name": "lastSupperAt",
+        "inputs": [],
+        "outputs": [
+            {
+                "name": "",
+                "type": "uint64",
+                "internalType": "uint64"
+            }
+        ],
+        "stateMutability": "view"
+    },
+    {
+        "type": "function",
+        "name": "lastSupperPopulationThreshold",
+        "inputs": [],
+        "outputs": [
+            {
+                "name": "",
+                "type": "uint256",
+                "internalType": "uint256"
+            }
+        ],
+        "stateMutability": "view"
+    },
+    {
+        "type": "function",
+        "name": "lastSupperWarningAt",
+        "inputs": [],
+        "outputs": [
+            {
+                "name": "",
+                "type": "uint64",
+                "internalType": "uint64"
             }
         ],
         "stateMutability": "view"
@@ -1510,6 +1614,19 @@ export const GameEngineABI = [
     },
     {
         "type": "function",
+        "name": "s_populationLastSupperWarningAt",
+        "inputs": [],
+        "outputs": [
+            {
+                "name": "",
+                "type": "uint64",
+                "internalType": "uint64"
+            }
+        ],
+        "stateMutability": "view"
+    },
+    {
+        "type": "function",
         "name": "s_preMintEnd",
         "inputs": [],
         "outputs": [
@@ -1733,6 +1850,19 @@ export const GameEngineABI = [
     },
     {
         "type": "function",
+        "name": "trucePopulationThreshold",
+        "inputs": [],
+        "outputs": [
+            {
+                "name": "",
+                "type": "uint256",
+                "internalType": "uint256"
+            }
+        ],
+        "stateMutability": "view"
+    },
+    {
+        "type": "function",
         "name": "voteTruce",
         "inputs": [
             {
@@ -1746,6 +1876,69 @@ export const GameEngineABI = [
     },
     {
         "type": "event",
+        "name": "CorpseConsumed",
+        "inputs": [
+            {
+                "name": "eaterId",
+                "type": "uint256",
+                "indexed": true,
+                "internalType": "uint256"
+            },
+            {
+                "name": "corpseId",
+                "type": "uint256",
+                "indexed": true,
+                "internalType": "uint256"
+            },
+            {
+                "name": "rotten",
+                "type": "bool",
+                "indexed": false,
+                "internalType": "bool"
+            }
+        ],
+        "anonymous": false
+    },
+    {
+        "type": "event",
+        "name": "CorpsePowered",
+        "inputs": [
+            {
+                "name": "tokenId",
+                "type": "uint256",
+                "indexed": true,
+                "internalType": "uint256"
+            },
+            {
+                "name": "poweredUntil",
+                "type": "uint64",
+                "indexed": false,
+                "internalType": "uint64"
+            }
+        ],
+        "anonymous": false
+    },
+    {
+        "type": "event",
+        "name": "DeathMaterialized",
+        "inputs": [
+            {
+                "name": "tokenId",
+                "type": "uint256",
+                "indexed": true,
+                "internalType": "uint256"
+            },
+            {
+                "name": "deadAt",
+                "type": "uint64",
+                "indexed": false,
+                "internalType": "uint64"
+            }
+        ],
+        "anonymous": false
+    },
+    {
+        "type": "event",
         "name": "EndPreMintPhase",
         "inputs": [
             {
@@ -1753,6 +1946,31 @@ export const GameEngineABI = [
                 "type": "uint256",
                 "indexed": false,
                 "internalType": "uint256"
+            }
+        ],
+        "anonymous": false
+    },
+    {
+        "type": "event",
+        "name": "FinalBiteTriggered",
+        "inputs": [
+            {
+                "name": "attackerId",
+                "type": "uint256",
+                "indexed": true,
+                "internalType": "uint256"
+            },
+            {
+                "name": "targetId",
+                "type": "uint256",
+                "indexed": true,
+                "internalType": "uint256"
+            },
+            {
+                "name": "deadline",
+                "type": "uint64",
+                "indexed": false,
+                "internalType": "uint64"
             }
         ],
         "anonymous": false
@@ -1771,6 +1989,44 @@ export const GameEngineABI = [
                 "name": "startingPopulation",
                 "type": "uint256",
                 "indexed": false,
+                "internalType": "uint256"
+            }
+        ],
+        "anonymous": false
+    },
+    {
+        "type": "event",
+        "name": "LastSupperWarningStarted",
+        "inputs": [
+            {
+                "name": "warningAt",
+                "type": "uint64",
+                "indexed": false,
+                "internalType": "uint64"
+            },
+            {
+                "name": "bellAt",
+                "type": "uint64",
+                "indexed": false,
+                "internalType": "uint64"
+            }
+        ],
+        "anonymous": false
+    },
+    {
+        "type": "event",
+        "name": "LiveDevoured",
+        "inputs": [
+            {
+                "name": "eaterId",
+                "type": "uint256",
+                "indexed": true,
+                "internalType": "uint256"
+            },
+            {
+                "name": "preyId",
+                "type": "uint256",
+                "indexed": true,
                 "internalType": "uint256"
             }
         ],
@@ -1816,6 +2072,43 @@ export const GameEngineABI = [
                 "type": "address",
                 "indexed": true,
                 "internalType": "address"
+            }
+        ],
+        "anonymous": false
+    },
+    {
+        "type": "event",
+        "name": "Poisoned",
+        "inputs": [
+            {
+                "name": "attackerId",
+                "type": "uint256",
+                "indexed": true,
+                "internalType": "uint256"
+            },
+            {
+                "name": "targetId",
+                "type": "uint256",
+                "indexed": true,
+                "internalType": "uint256"
+            },
+            {
+                "name": "attackerExpiryAfter",
+                "type": "uint64",
+                "indexed": false,
+                "internalType": "uint64"
+            },
+            {
+                "name": "targetExpiryAfter",
+                "type": "uint64",
+                "indexed": false,
+                "internalType": "uint64"
+            },
+            {
+                "name": "protectionUntil",
+                "type": "uint64",
+                "indexed": false,
+                "internalType": "uint64"
             }
         ],
         "anonymous": false
@@ -2310,7 +2603,7 @@ export const RoyaltyTreasuryABI = [
 ] as const;
 
 
-export const NftABI = [
+export const GluttonsNftABI = [
     {
         "type": "constructor",
         "inputs": [
@@ -3375,6 +3668,6 @@ export const ABIS = {
     GameEngine: GameEngineABI,
     PrizeVault: PrizeVaultABI,
     RoyaltyTreasury: RoyaltyTreasuryABI,
-    Nft: NftABI,
+    Nft: GluttonsNftABI,
     Inspector: InspectorABI
 }

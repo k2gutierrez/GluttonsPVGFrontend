@@ -1,11 +1,15 @@
 'use client';
 import { FormEvent, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Header } from '@/components/Header';
 import { Kicker, Panel } from '@/components/Terminal';
 import { Scramble } from '@/components/fx/RetroText';
 import { CONTRACTS, GAME_ENGINE_ABI, GAME_HOUR_SECONDS, INSPECTOR_ABI, ZERO_ADDRESS } from '@/lib/constants';
 import { gameClock } from '@/lib/time';
 import { usePublicClient } from 'wagmi';
+import { useAtomValue } from 'jotai';
+import { protocolAtom } from '@/state/game';
+import { useProtocolStage } from '@/hooks/useProtocolStage';
 
 type Inspection = {
   id: number;
@@ -24,17 +28,20 @@ type Inspection = {
 };
 
 const STATE = ['UNREVEALED', 'ALIVE', 'FRESH CORPSE', 'ROTTEN CORPSE'];
-const clock = gameClock;
 const short = (a:string) => a ? `${a.slice(0,8)}…${a.slice(-6)}` : '—';
 
 export default function InspectPage(){
+  const stage=useProtocolStage(); const router=useRouter();
   const client=usePublicClient();
+  const p=useAtomValue(protocolAtom);
+  const gameHour=Number(p.gameHourSeconds>0n?p.gameHourSeconds:BigInt(GAME_HOUR_SECONDS));
   const [token,setToken]=useState('');
   const [data,setData]=useState<Inspection|null>(null);
   const [loading,setLoading]=useState(false);
   const [error,setError]=useState<string|null>(null);
   const [now,setNow]=useState(()=>Math.floor(Date.now()/1000));
 
+  useEffect(()=>{if(stage!=='live'&&stage!=='syncing')router.replace('/')},[stage,router]);
   useEffect(()=>{const t=setInterval(()=>setNow(Math.floor(Date.now()/1000)),1000);return()=>clearInterval(t)},[]);
   useEffect(()=>{const q=new URLSearchParams(window.location.search).get('token');if(q&&/^\d+$/.test(q)){setToken(q);void inspect(Number(q));}},[client]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -59,12 +66,14 @@ export default function InspectPage(){
   const finalBiteExpired=Boolean(data&&data.finalBiteDeadline>0&&data.finalBiteDeadline<=now);
   const logicallyDead=Boolean(data&&data.visualState===1&&(finalBiteExpired||(!data.fasting&&remain<=0)));
   const displayState=data?(logicallyDead?2:data.visualState):0;
-  const hungryNow=Boolean(data&&displayState===1&&remain>0&&remain<=12*GAME_HOUR_SECONDS);
+  const hungryNow=Boolean(data&&displayState===1&&remain>0&&remain<=12*gameHour);
 
+  if(stage!=='live') return null;
   return <><Header/><main className="page-shell">
     <Kicker>public protocol tool / canonical read</Kicker>
     <h1 className="inventory-title idle-glitch" data-text="TOKEN INSPECTOR"><Scramble loop>TOKEN INSPECTOR</Scramble></h1>
     <p className="accent-copy">KNOW THE TOKEN ID. READ THE MACHINE. NO TARGET DIRECTORY.</p>
+    {p.isSettled&&<Panel className="mt-4 final-archive-note"><b>SETTLEMENT IS FINAL.</b><span>This inspector can still expose raw token timestamps/visual state after the game closes. Those clocks no longer determine the winner. Use FINAL TABLE for the canonical outcome.</span></Panel>}
 
     <Panel className="mt-5 p-5 md:p-7">
       <form onSubmit={submit} className="flex flex-col gap-3 md:flex-row">
@@ -84,18 +93,18 @@ export default function InspectPage(){
         </div>
         <div className="mt-5 grid gap-3 sm:grid-cols-2">
           <Read label="OWNER" value={short(data.owner)} detail={data.owner}/>
-          <Read label="CLOCK" value={displayState===1?clock(remain):'DEAD'} detail={data.expiry?`EXPIRY ${new Date(data.expiry*1000).toLocaleString()}`:'NO ACTIVE EXPIRY'}/>
+          <Read label="CLOCK" value={displayState===1?gameClock(remain,gameHour):'DEAD'} detail={data.expiry?`EXPIRY ${new Date(data.expiry*1000).toLocaleString()}`:'NO ACTIVE EXPIRY'}/>
           <Read label="HUNGRY" value={displayState===1?(hungryNow?'YES':'NO'):'N/A'}/>
           <Read label="FASTING" value={displayState===1?(data.fasting?'YES':'NO'):'ENDED'}/>
-          <Read label="FINAL BITE" value={displayState===1&&data.finalBiteDeadline>now?clock(data.finalBiteDeadline-now):'NONE'}/>
+          <Read label="FINAL BITE" value={displayState===1&&data.finalBiteDeadline>now?gameClock(data.finalBiteDeadline-now,gameHour):'NONE'}/>
           <Read label="DEATH SETTLED" value={data.deathSettled?'YES':'NO'}/>
         </div>
       </Panel>
       <Panel className="p-5 md:p-7">
         <Kicker>combat / corpse telemetry</Kicker>
         <div className="mt-5 space-y-3">
-          <Read label="POISON SHIELD" value={displayState===1?(data.fasting?'DOWN':data.poisonProtectedUntil>now?`UP · ${clock(data.poisonProtectedUntil-now)}`:'DOWN'):'N/A'}/>
-          <Read label="FRIDGE" value={data.poweredUntil>now?`ON · ${clock(data.poweredUntil-now)}`:'OFF'}/>
+          <Read label="POISON SHIELD" value={displayState===1?(data.fasting?'DOWN':data.poisonProtectedUntil>now?`UP · ${gameClock(data.poisonProtectedUntil-now,gameHour)}`:'DOWN'):'N/A'}/>
+          <Read label="FRIDGE" value={data.poweredUntil>now?`ON · ${gameClock(Math.max(0,Math.min(data.poweredUntil,Number(p.lastSupperAt||0n)||data.poweredUntil)-now),gameHour)}`:'OFF'}/>
           <Read label="DEAD AT" value={data.deadAt?new Date(data.deadAt*1000).toLocaleString():'NOT MATERIALIZED'}/>
           <Read label="SPOIL Q4" value={data.spoilQ4.toLocaleString()}/>
         </div>

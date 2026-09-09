@@ -26,7 +26,7 @@ export default function Communities(){
   const mintedR=useReadContract({address:CONTRACTS.gameEngine,abi:GAME_ENGINE_ABI,functionName:'s_totalMinted',query:{enabled,refetchInterval:5000}});
   const maxSupplyR=useReadContract({address:CONTRACTS.gameEngine,abi:GAME_ENGINE_ABI,functionName:'MAX_SUPPLY',query:{enabled}});
   const owner=String(ownerR.data||ZERO_ADDRESS); const isOwner=!!address&&owner.toLowerCase()===address.toLowerCase();
-  const preMintEnd=Boolean(preEndR.data); const communityPrice=BigInt(priceR.data??0n); const totalMinted=Number(mintedR.data??0n); const maxSupply=Number(maxSupplyR.data??2000n);
+  const preMintEnd=Boolean(preEndR.data); const communityPrice=BigInt(priceR.data??0n); const totalMinted=Number(mintedR.data??0n); const maxSupply=Number(maxSupplyR.data??0n);
   const communities=useMemo(()=>((communitiesR.data||[]) as readonly any[]).map((c,i)=>norm(c,i)),[communitiesR.data]);
   const communityMinted=communities.reduce((n,c)=>n+c.amountMinted,0); const configuredCap=communities.reduce((n,c)=>n+c.maxTotalAmountAllowed,0);
   const refresh=()=>{communitiesR.refetch();preEndR.refetch();priceR.refetch();mintedR.refetch();};

@@ -3,15 +3,23 @@ import { useCallback } from 'react';
 import { useSetAtom } from 'jotai';
 import { usePublicClient } from 'wagmi';
 import { useRouter } from 'next/navigation';
-import { CONTRACTS, GAME_ENGINE_ABI, DEFAULT_MAX_SUPPLY, ZERO_ADDRESS } from '@/lib/constants';
+import { ACTIVE_CHAIN, CONTRACTS, GAME_ENGINE_ABI, ZERO_ADDRESS } from '@/lib/constants';
 import { protocolAtom } from '@/state/game';
 
-const LIVE_LOCK_KEY = `gluttons:live-locked:${CONTRACTS.gameEngine.toLowerCase()}`;
+const LIVE_LOCK_KEY = `gluttons:live-locked:${ACTIVE_CHAIN.id}:${CONTRACTS.gameEngine.toLowerCase()}`;
+const wait = (ms:number) => new Promise(r=>setTimeout(r,ms));
 
-/**
- * Re-check the terminal stage immediately after a mint-like transaction confirms.
- * GameSync still polls as a fallback for sellout caused by another wallet.
- */
+async function readRetry(client:any, functionName:string) {
+  let last:unknown;
+  for (const ms of [0,120,350,800]) {
+    if (ms) await wait(ms);
+    try { return await client.readContract({address:CONTRACTS.gameEngine, abi:GAME_ENGINE_ABI, functionName} as any); }
+    catch (e) { last=e; }
+  }
+  throw last;
+}
+
+/** Immediate post-transaction stage verification. Never waits for the background poller. */
 export function useLiveStageLatch() {
   const client = usePublicClient();
   const set = useSetAtom(protocolAtom);
@@ -20,32 +28,26 @@ export function useLiveStageLatch() {
   return useCallback(async () => {
     if (!client || CONTRACTS.gameEngine === ZERO_ADDRESS) return false;
     try {
-      const [gameStartRaw, totalMintedRaw, maxSupplyRaw] = await Promise.all([
-        client.readContract({ address: CONTRACTS.gameEngine, abi: GAME_ENGINE_ABI, functionName: 's_gameStart' } as any),
-        client.readContract({ address: CONTRACTS.gameEngine, abi: GAME_ENGINE_ABI, functionName: 's_totalMinted' } as any),
-        client.readContract({ address: CONTRACTS.gameEngine, abi: GAME_ENGINE_ABI, functionName: 'MAX_SUPPLY' } as any).catch(() => BigInt(DEFAULT_MAX_SUPPLY)),
-      ]);
-      const gameStart = BigInt(gameStartRaw as bigint ?? 0n);
-      const totalMinted = BigInt(totalMintedRaw as bigint ?? 0n);
-      const maxSupply = BigInt(maxSupplyRaw as bigint ?? BigInt(DEFAULT_MAX_SUPPLY));
-      const live = gameStart > 0n || (maxSupply > 0n && totalMinted >= maxSupply);
-
+      const gameStart = BigInt(await readRetry(client,'s_gameStart') as bigint);
+      const phaseCode = gameStart > 0n ? Number(await readRetry(client,'currentPhaseCode') as number) : 0;
+      const live = gameStart > 0n || phaseCode > 0;
       set(prev => ({
         ...prev,
         gameStart: gameStart > 0n ? gameStart : prev.gameStart,
-        totalMinted: totalMinted > prev.totalMinted ? totalMinted : prev.totalMinted,
-        maxSupply,
-        synced: true,
+        phaseCode: live ? phaseCode : prev.phaseCode,
+        currentPhase: live ? ['PRE_GAME','FEAST','PLAGUE','LS_WARNING','LAST_SUPPER','SETTLED'][phaseCode] ?? prev.currentPhase : prev.currentPhase,
+        stageResolved: true,
+        synced: prev.synced || live,
+        rpcDegraded: false,
         liveLocked: prev.liveLocked || live,
       }));
-
       if (live) {
-        try { window.localStorage.setItem(LIVE_LOCK_KEY, '1'); } catch {}
+        try { window.localStorage.setItem(LIVE_LOCK_KEY,'1'); } catch {}
         router.replace('/');
       }
       return live;
     } catch {
-      // The 5s pre-game watcher remains the safety fallback. Never unlock LIVE here.
+      // Keep the existing one-way state. Background GameSync will retry.
       return false;
     }
   }, [client, router, set]);
