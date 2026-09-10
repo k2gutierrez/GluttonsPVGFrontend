@@ -6,6 +6,7 @@ import type { Address } from 'viem';
 import { protocolAtom } from '@/state/game';
 import { CONTRACTS, GAME_ENGINE_ABI, GAME_HOUR_SECONDS, GLUTTON_NFT_ABI, INSPECTOR_ABI, ZERO_ADDRESS } from '@/lib/constants';
 import { metadataImage } from '@/lib/metadata';
+import { readContractRetry, resilientMulticall, rpcCircuitState } from '@/lib/rpc';
 
 export type GluttonToken = {
   id: number;
@@ -30,39 +31,6 @@ export type GluttonToken = {
 // one giant multicall.
 export const INVENTORY_PAGE_SIZE = 50;
 const okResult = (r: any) => r?.status === 'success' ? r.result : undefined;
-
-const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
-async function readContractWithRetry(client: any, contract: any, attempts = 3) {
-  let last: any;
-  for (let i = 0; i < attempts; i++) {
-    try { return await client.readContract(contract); }
-    catch (e) { last = e; if (i < attempts - 1) await wait(250 * (i + 1)); }
-  }
-  throw last;
-}
-
-async function resilientMulticall(client: any, contracts: any[], floor = 1): Promise<any[]> {
-  if (contracts.length === 0) return [];
-  try {
-    return await client.multicall({ allowFailure: true, deployless: true, contracts });
-  } catch (error) {
-    if (contracts.length <= floor) {
-      // Some Curtis RPC responses fail deployless multicall while the same
-      // eth_call succeeds individually. Fall back to direct reads with retry.
-      const out = [];
-      for (const contract of contracts) {
-        try { out.push({ status: 'success', result: await readContractWithRetry(client, contract) }); }
-        catch (e) { out.push({ status: 'failure', error: e }); }
-      }
-      return out;
-    }
-    const mid = Math.ceil(contracts.length / 2);
-    const left = await resilientMulticall(client, contracts.slice(0, mid), floor);
-    const right = await resilientMulticall(client, contracts.slice(mid), floor);
-    return [...left, ...right];
-  }
-}
 
 // GameEngine.getVisualState() remains the canonical Fresh/Rotten source.
 // A loaded token can cross a clock boundary between RPC reads. Canonical v1.3
@@ -188,7 +156,7 @@ export function useOwnedGluttons() {
       setScannedCount(endId);
       setNextTokenId(endId + 1);
       // First paint uses state + fallback art; metadata hydrates afterward.
-      void hydrateImages(ownedIds);
+      if (!rpcCircuitState().blocked) setTimeout(() => void hydrateImages(ownedIds), 1200);
     } catch (e: any) {
       if (session === sessionRef.current) setError(e?.shortMessage || e?.message || 'Could not load wallet inventory page.');
     } finally {
@@ -232,7 +200,7 @@ export function useOwnedGluttons() {
       void hydrateImages(hydratedOwned.map(t => t.id));
 
       // Burns/consumption can change ERC-721 balance, so keep the header honest.
-      const balance = await readContractWithRetry(client, {
+      const balance = await readContractRetry(client, {
         address: CONTRACTS.gluttonNFT,
         abi: GLUTTON_NFT_ABI,
         functionName: 'balanceOf',
@@ -263,7 +231,7 @@ export function useOwnedGluttons() {
       }
       setTokens(updated.sort((a, b) => a.id - b.id));
       void hydrateImages(updated.map(t => t.id));
-      const balance = await readContractWithRetry(client, { address: CONTRACTS.gluttonNFT, abi: GLUTTON_NFT_ABI, functionName: 'balanceOf', args: [address] });
+      const balance = await readContractRetry(client, { address: CONTRACTS.gluttonNFT, abi: GLUTTON_NFT_ABI, functionName: 'balanceOf', args: [address] });
       setWalletBalance(Number(balance));
     } catch (e: any) {
       setError(e?.shortMessage || e?.message || 'Could not refresh loaded positions.');
@@ -281,7 +249,7 @@ export function useOwnedGluttons() {
     setError(null);
     requestLock.current = false;
     try {
-      const balance = await readContractWithRetry(client, { address: CONTRACTS.gluttonNFT, abi: GLUTTON_NFT_ABI, functionName: 'balanceOf', args: [address] });
+      const balance = await readContractRetry(client, { address: CONTRACTS.gluttonNFT, abi: GLUTTON_NFT_ABI, functionName: 'balanceOf', args: [address] });
       if (session !== sessionRef.current) return;
       setWalletBalance(Number(balance));
       if (Number(balance) > 0 && totalMinted > 0) await scanPage(1, session);
@@ -303,7 +271,7 @@ export function useOwnedGluttons() {
       if (!client || !address || CONTRACTS.gluttonNFT === ZERO_ADDRESS || CONTRACTS.inspector === ZERO_ADDRESS || totalMinted === 0) return;
       setLoading(true);
       try {
-        const balance = await readContractWithRetry(client, { address: CONTRACTS.gluttonNFT, abi: GLUTTON_NFT_ABI, functionName: 'balanceOf', args: [address] });
+        const balance = await readContractRetry(client, { address: CONTRACTS.gluttonNFT, abi: GLUTTON_NFT_ABI, functionName: 'balanceOf', args: [address] });
         if (session !== sessionRef.current) return;
         setWalletBalance(Number(balance));
         if (Number(balance) === 0) return;

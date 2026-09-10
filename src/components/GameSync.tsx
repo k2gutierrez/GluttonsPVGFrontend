@@ -4,12 +4,13 @@ import { useEffect, useRef } from 'react';
 import { useAtom } from 'jotai';
 import { usePublicClient } from 'wagmi';
 import { ACTIVE_CHAIN, CONTRACTS, GAME_ENGINE_ABI, GAME_HOUR_SECONDS, ZERO_ADDRESS } from '@/lib/constants';
+import { resilientMulticall, readContractRetry, RpcRateLimitError, rpcCircuitState } from '@/lib/rpc';
 import { protocolAtom } from '@/state/game';
 
 const LIVE_LOCK_KEY = `gluttons:live-locked:${ACTIVE_CHAIN.id}:${CONTRACTS.gameEngine.toLowerCase()}`;
-const BOOT_RETRY_MS = [0, 120, 300, 700, 1400];
-const PRE_GAME_POLL_MS = 1800;
-const LIVE_POLL_MS = 3000;
+const PRE_GAME_POLL_MS = 10_000;
+const LIVE_POLL_MS = 12_000;
+const MIN_FOCUS_REFRESH_AGE_MS = 10_000;
 
 const phaseName = (code: number) => {
   if (code === 0) return 'PRE_GAME';
@@ -20,23 +21,8 @@ const phaseName = (code: number) => {
   return 'SETTLED';
 };
 
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
-async function readRetry(client: any, functionName: string, attempts = BOOT_RETRY_MS.length) {
-  let lastError: unknown;
-  for (let i = 0; i < attempts; i++) {
-    if (BOOT_RETRY_MS[i]) await sleep(BOOT_RETRY_MS[i]);
-    try {
-      return await client.readContract({
-        address: CONTRACTS.gameEngine,
-        abi: GAME_ENGINE_ABI,
-        functionName,
-      } as any);
-    } catch (e) {
-      lastError = e;
-    }
-  }
-  throw lastError;
+async function readRetry(client: any, functionName: string, attempts = 2) {
+  return readContractRetry(client, { address: CONTRACTS.gameEngine, abi: GAME_ENGINE_ABI, functionName } as any, attempts);
 }
 
 function readResult(row: any) {
@@ -79,6 +65,9 @@ export function GameSync() {
     }
 
     async function stageProbe() {
+      // Once this exact GameEngine has been confirmed LIVE, s_gameStart is immutable.
+      // Do not spend one extra RPC request every refresh re-proving an irreversible fact.
+      if (liveRef.current) return true;
       const gameStartRaw = await readRetry(client, 's_gameStart');
       const gameStart = BigInt(gameStartRaw as bigint);
       if (gameStart > 0n) {
@@ -133,7 +122,7 @@ export function GameSync() {
     }
 
     async function snapshot() {
-      if (!client || busyRef.current || cancelled) return;
+      if (busyRef.current || cancelled) return;
       busyRef.current = true;
       try {
         const live = await stageProbe();
@@ -157,29 +146,11 @@ export function GameSync() {
           'trucePopulationThreshold',
         ];
 
-        let rows: readonly any[];
-        try {
-          rows = await client.multicall({
-            allowFailure: true,
-            deployless: true,
-            contracts: reads.map(functionName => ({
-              address: CONTRACTS.gameEngine,
-              abi: GAME_ENGINE_ABI,
-              functionName,
-            })) as any,
-          });
-        } catch {
-          // If deployless multicall is flaky, individual eth_call reads keep the
-          // stage/global state alive instead of blanking the whole application.
-          rows = await Promise.all(reads.map(async functionName => {
-            try {
-              const value = await readRetry(client, functionName, 2);
-              return { status: 'success', result: value };
-            } catch (error) {
-              return { status: 'failure', error };
-            }
-          }));
-        }
+        const rows = await resilientMulticall(client, reads.map(functionName => ({
+          address: CONTRACTS.gameEngine,
+          abi: GAME_ENGINE_ABI,
+          functionName,
+        })) as any);
 
         if (cancelled || !mountedRef.current) return;
         const v = (i: number) => readResult(rows[i]);
@@ -227,7 +198,7 @@ export function GameSync() {
           liveLocked: prev.liveLocked || live,
         });
         });
-      } catch {
+      } catch (error) {
         if (!cancelled && mountedRef.current) {
           // Preserve the last known canonical snapshot. A transient RPC failure
           // must never reset LIVE to PRE_GAME or reset supply to 0/2,000.
@@ -244,17 +215,23 @@ export function GameSync() {
 
     const schedule = () => {
       if (cancelled) return;
-      const delay = liveRef.current ? LIVE_POLL_MS : PRE_GAME_POLL_MS;
+      const baseDelay = liveRef.current ? LIVE_POLL_MS : PRE_GAME_POLL_MS;
+      const circuit = rpcCircuitState();
+      const delay = Math.max(baseDelay, circuit.retryInMs + (circuit.blocked ? 750 : 0));
       timer = setTimeout(async () => {
-        await snapshot();
+        if (document.visibilityState === 'visible') await snapshot();
         schedule();
       }, delay);
     };
 
     void snapshot().finally(schedule);
 
-    const onFocus = () => { void snapshot(); };
-    const onVisibility = () => { if (document.visibilityState === 'visible') void snapshot(); };
+    const refreshIfStale = () => {
+      const age = Date.now() - (p.lastSuccessfulSyncAt || 0);
+      if (age >= MIN_FOCUS_REFRESH_AGE_MS && !rpcCircuitState().blocked) void snapshot();
+    };
+    const onFocus = () => refreshIfStale();
+    const onVisibility = () => { if (document.visibilityState === 'visible') refreshIfStale(); };
     window.addEventListener('focus', onFocus);
     document.addEventListener('visibilitychange', onVisibility);
 

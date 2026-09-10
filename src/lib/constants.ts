@@ -1,6 +1,18 @@
 import { defineChain, type Address } from 'viem';
 import { contracts, ABIS } from './Contracs_and_ABIs';
 
+const compactUrls = (...values: Array<string | undefined>) => [...new Set(values.filter((v): v is string => Boolean(v && v.trim())).map(v => v.trim()))];
+export const CURTIS_RPC_URLS = compactUrls(
+  process.env.NEXT_PUBLIC_CURTIS_RPC_URL,
+  process.env.NEXT_PUBLIC_CURTIS_RPC_FALLBACK_URL,
+  'https://curtis.rpc.caldera.xyz/http',
+);
+export const ETHEREUM_RPC_URLS = compactUrls(
+  process.env.NEXT_PUBLIC_ETHEREUM_RPC_URL,
+  process.env.NEXT_PUBLIC_ETHEREUM_RPC_FALLBACK_URL,
+  'https://ethereum-rpc.publicnode.com',
+);
+
 // ─────────────────────────────────────────────────────────────
 // GLUTTONS FRONTEND SINGLE CONFIG SURFACE
 // Reviewed Integration Manual: Sep 2026

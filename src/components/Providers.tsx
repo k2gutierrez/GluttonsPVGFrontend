@@ -10,7 +10,18 @@ import { wagmiConfig } from '@/lib/web3';
 import { FXProvider } from '@/components/fx/FXProvider';
 
 export default function Providers({ children }: { children: React.ReactNode }) {
-  const [q] = useState(() => new QueryClient());
+  const [q] = useState(() => new QueryClient({
+    defaultOptions: {
+      queries: {
+        staleTime: 12_000,
+        gcTime: 5 * 60_000,
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
+        retry: false,
+      },
+      mutations: { retry: false },
+    },
+  }));
   return <WagmiProvider config={wagmiConfig}>
     <QueryClientProvider client={q}>
       <JotaiProvider>

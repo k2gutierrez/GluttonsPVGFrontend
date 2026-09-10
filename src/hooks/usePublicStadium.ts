@@ -6,11 +6,11 @@ import { useAtomValue } from 'jotai';
 import type { Address } from 'viem';
 import { protocolAtom } from '@/state/game';
 import { CONTRACTS, GAME_ENGINE_ABI, GAME_HOUR_SECONDS, INSPECTOR_ABI, ZERO_ADDRESS } from '@/lib/constants';
-import { resilientMulticall } from '@/lib/rpc';
+import { resilientMulticall, rpcCircuitState } from '@/lib/rpc';
 
 export const STADIUM_BATCH_SIZE = 50;
-const REFRESH_EVERY_MS = 2500;
-const INITIAL_BATCH_PAUSE_MS = 90;
+const REFRESH_EVERY_MS = 15_000;
+const INITIAL_BATCH_PAUSE_MS = 500;
 
 export type StadiumStatus =
   | 'UNMINTED'
@@ -116,6 +116,7 @@ export function usePublicStadium() {
           if (cancelled || id !== generation.current) return;
           const end = Math.min(totalMinted, start + STADIUM_BATCH_SIZE - 1);
           const ids = Array.from({ length: end - start + 1 }, (_, i) => start + i);
+          while (rpcCircuitState().blocked && !cancelled) await wait(Math.min(1000, rpcCircuitState().retryInMs || 1000));
           const batch = await readBatch(ids);
           if (cancelled || id !== generation.current) return;
           setTokens(prev => {
@@ -143,7 +144,7 @@ export function usePublicStadium() {
     if (!client || loading || scanned < totalMinted || totalMinted <= 0) return;
     let busy = false;
     const timer = setInterval(async () => {
-      if (busy) return;
+      if (busy || document.visibilityState !== 'visible' || rpcCircuitState().blocked) return;
       busy = true;
       try {
         let start = refreshCursor.current;

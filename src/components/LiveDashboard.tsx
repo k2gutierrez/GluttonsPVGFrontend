@@ -23,11 +23,11 @@ const phaseCopy: Record<string,{eyebrow:string;line:string}> = {
 
 export function LiveDashboard() {
   const p = useAtomValue(protocolAtom);
-  const pot = useBalance({ address: CONTRACTS.prizeVault, query: { refetchInterval: 5000 } });
-  const block = useBlockNumber({ watch: true });
+  const pot = useBalance({ address: CONTRACTS.prizeVault, query: { refetchInterval: 20_000 } });
+  const block = useBlockNumber({ watch: false, query: { refetchInterval: 20_000 } });
   const wethAddressR = useReadContract({ address: CONTRACTS.prizeVault, abi: PRIZE_VAULT_ABI, functionName: 'getWethAddress', query: { enabled: CONTRACTS.prizeVault !== ZERO_ADDRESS } });
   const wethAddress = (wethAddressR.data || ZERO_ADDRESS) as Address;
-  const wethPot = useReadContract({ address: wethAddress, abi: ERC20_ABI, functionName: 'balanceOf', args: [CONTRACTS.prizeVault], query: { enabled: wethAddress !== ZERO_ADDRESS, refetchInterval: 5000 } });
+  const wethPot = useReadContract({ address: wethAddress, abi: ERC20_ABI, functionName: 'balanceOf', args: [CONTRACTS.prizeVault], query: { enabled: wethAddress !== ZERO_ADDRESS, refetchInterval: 20_000 } });
   const gameHourSeconds = Number(p.gameHourSeconds > 0n ? p.gameHourSeconds : BigInt(GAME_HOUR_SECONDS));
   const maxSupply = Number(p.maxSupply);
   const minted = Number(p.totalMinted || p.startingPopulation);

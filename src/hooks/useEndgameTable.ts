@@ -107,7 +107,7 @@ export function useEndgameTable() {
   useEffect(() => {
     if (!active) { setLive([]); return; }
     void refresh();
-    const timer = setInterval(() => void refresh(), p.isSettled ? 30000 : 6000);
+    const timer = setInterval(() => void refresh(), p.isSettled ? 45_000 : 12_000);
     return () => clearInterval(timer);
   }, [active, refresh, p.isSettled]);
 
@@ -168,7 +168,7 @@ export function useSettlementEntitlement() {
   useEffect(() => {
     if (!p.isSettled) return;
     void refresh();
-    const timer = setInterval(() => void refresh(), 6000);
+    const timer = setInterval(() => void refresh(), 20_000);
     return () => clearInterval(timer);
   }, [p.isSettled, refresh]);
 

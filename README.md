@@ -25,3 +25,21 @@ The player UI intentionally has no Reap gameplay button. A production keeper/bat
 
 ## Final bundled contract note
 The `docs/contracts/GameEngine.sol` in this package contains an additional settlement-input validation hardening pass. Its ABI is unchanged, so the frontend integration remains the same. Carlos should compile/test/deploy this bundled revision rather than an earlier v1.0/v1.0.1 GameEngine copy.
+
+---
+
+## v1.2 RPC-STABLE — Curtis 429 fix
+
+This build replaces the independent aggressive read/retry behavior that could saturate the Curtis public RPC after a gameplay transaction.
+
+Key runtime invariants:
+- Game stage never falls back to Mint/PRE_GAME because an RPC read failed.
+- Last confirmed LIVE snapshot remains visible during temporary RPC degradation.
+- Browser-wide read concurrency is capped.
+- HTTP 429 opens one shared circuit breaker; all manual reads back off together.
+- 429 never triggers recursive multicall splitting.
+- Public Matrix, balances, endgame and mint reads use slower coordinated refresh intervals.
+- Poison target state is read on selection and after confirmation instead of polling every 5 seconds.
+- Ordered RPC fallback transport is supported through the primary/fallback environment variables.
+
+See `BUILD_NOTES_RPC_STABILITY_v1.2.md` for deployment details.

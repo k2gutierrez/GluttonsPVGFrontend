@@ -20,10 +20,10 @@ export default function Communities(){
   const [form,setForm]=useState({name:'',collection:'',maxTotal:'100',maxPerWallet:'1'});
   const enabled=CONTRACTS.gameEngine!==ZERO_ADDRESS;
   const ownerR=useReadContract({address:CONTRACTS.gameEngine,abi:GAME_ENGINE_ABI,functionName:'owner',query:{enabled}});
-  const communitiesR=useReadContract({address:CONTRACTS.gameEngine,abi:GAME_ENGINE_ABI,functionName:'getInvitedNftCommunities',query:{enabled,refetchInterval:5000}});
-  const preEndR=useReadContract({address:CONTRACTS.gameEngine,abi:GAME_ENGINE_ABI,functionName:'s_preMintEnd',query:{enabled,refetchInterval:5000}});
-  const priceR=useReadContract({address:CONTRACTS.gameEngine,abi:GAME_ENGINE_ABI,functionName:'s_communityMintprice',query:{enabled,refetchInterval:5000}});
-  const mintedR=useReadContract({address:CONTRACTS.gameEngine,abi:GAME_ENGINE_ABI,functionName:'s_totalMinted',query:{enabled,refetchInterval:5000}});
+  const communitiesR=useReadContract({address:CONTRACTS.gameEngine,abi:GAME_ENGINE_ABI,functionName:'getInvitedNftCommunities',query:{enabled,refetchInterval:15000}});
+  const preEndR=useReadContract({address:CONTRACTS.gameEngine,abi:GAME_ENGINE_ABI,functionName:'s_preMintEnd',query:{enabled,refetchInterval:15000}});
+  const priceR=useReadContract({address:CONTRACTS.gameEngine,abi:GAME_ENGINE_ABI,functionName:'s_communityMintprice',query:{enabled,refetchInterval:15000}});
+  const mintedR=useReadContract({address:CONTRACTS.gameEngine,abi:GAME_ENGINE_ABI,functionName:'s_totalMinted',query:{enabled,refetchInterval:15000}});
   const maxSupplyR=useReadContract({address:CONTRACTS.gameEngine,abi:GAME_ENGINE_ABI,functionName:'MAX_SUPPLY',query:{enabled}});
   const owner=String(ownerR.data||ZERO_ADDRESS); const isOwner=!!address&&owner.toLowerCase()===address.toLowerCase();
   const preMintEnd=Boolean(preEndR.data); const communityPrice=BigInt(priceR.data??0n); const totalMinted=Number(mintedR.data??0n); const maxSupply=Number(maxSupplyR.data??0n);

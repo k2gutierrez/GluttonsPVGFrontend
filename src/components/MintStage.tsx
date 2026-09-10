@@ -59,7 +59,7 @@ export function MintStage() {
     address: CONTRACTS.gameEngine,
     abi: GAME_ENGINE_ABI,
     functionName: 'getInvitedNftCommunities',
-    query: { enabled: CONTRACTS.gameEngine !== ZERO_ADDRESS && !p.preMintEnd, refetchInterval: 5000 },
+    query: { enabled: CONTRACTS.gameEngine !== ZERO_ADDRESS && !p.preMintEnd, refetchInterval: 15_000 },
   });
   const communities = useMemo(() => {
     const data = (communityRead.data || []) as readonly any[];
@@ -75,7 +75,7 @@ export function MintStage() {
       args: [address ?? ZERO_ADDRESS],
     })) as any,
     allowFailure: true,
-    query: { enabled: !!address && communities.length > 0 && !p.preMintEnd, refetchInterval: 8000 },
+    query: { enabled: !!address && communities.length > 0 && !p.preMintEnd, refetchInterval: 20_000 },
   });
 
   // Canonical per-wallet community usage. This is now readable because
@@ -88,7 +88,7 @@ export function MintStage() {
       args: [address ?? ZERO_ADDRESS, c.collectionAddress],
     })) as any,
     allowFailure: true,
-    query: { enabled: !!address && communities.length > 0 && !p.preMintEnd, refetchInterval: 5000 },
+    query: { enabled: !!address && communities.length > 0 && !p.preMintEnd, refetchInterval: 15_000 },
   });
 
   const balanceFor = (id: number) => {
@@ -148,7 +148,7 @@ function PublicMint() {
     abi: GAME_ENGINE_ABI,
     functionName: 's_normalMintAmount',
     args: [address ?? ZERO_ADDRESS],
-    query: { enabled: !!address && CONTRACTS.gameEngine !== ZERO_ADDRESS, refetchInterval: 4000 },
+    query: { enabled: !!address && CONTRACTS.gameEngine !== ZERO_ADDRESS, refetchInterval: 15_000 },
   });
   const used = Number(walletMintRead.data ?? 0n);
   const walletRemaining = Math.max(0, PUBLIC_MAX_PER_WALLET - used);
