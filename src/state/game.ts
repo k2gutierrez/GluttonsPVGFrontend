@@ -30,6 +30,11 @@ export type ProtocolView = {
    * Onchain state remains authoritative; localStorage is only a fast boot hint.
    */
   liveLocked: boolean;
+  indexedBlock?: number;
+  indexedAt?: number;
+  tokenStateBlock?: number;
+  potNative?: bigint;
+  potWeth?: bigint;
 };
 
 export const protocolAtom = atom<ProtocolView>({
@@ -57,4 +62,5 @@ export const protocolAtom = atom<ProtocolView>({
   lastSupperThreshold: 0n,
   truceThreshold: 0n,
   liveLocked: false,
+  tokenStateBlock: 0,
 });

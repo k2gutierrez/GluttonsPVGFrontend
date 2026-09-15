@@ -1,12 +1,14 @@
 'use client';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
-import { useAccount, useReadContract } from 'wagmi';
+import { useAccount } from 'wagmi';
 import { formatEther, isAddress, parseEther, type Address } from 'viem';
 import { CONTRACTS, GAME_ENGINE_ABI, NATIVE_SYMBOL, ZERO_ADDRESS } from '@/lib/constants';
 import { Panel, Kicker } from '@/components/Terminal';
 import { TxButton } from '@/components/TxButton';
 import { Header } from '@/components/Header';
+import { readApi, forgetReadCache } from '@/lib/read-api';
+import type { ProtocolSnapshot } from '@/lib/read-model';
 
 type Community = {id:number;name:string;collectionAddress:Address;maxTotalAmountAllowed:number;maxPerWallet:number;allowed:boolean;amountMinted:number};
 function norm(raw:any,id:number):Community{const a=Array.isArray(raw)?raw:raw||{};return{id,name:String(a.name??a[0]??`COMMUNITY #${id}`),collectionAddress:String(a.collectionAddress??a[1]??ZERO_ADDRESS) as Address,maxTotalAmountAllowed:Number(a.maxTotalAmountAllowed??a[2]??0),maxPerWallet:Number(a.maxPerWallet??a[3]??0),allowed:Boolean(a.allowed??a[4]??false),amountMinted:Number(a.amountMinted??a[5]??0)}}
@@ -18,20 +20,16 @@ export default function Communities(){
   const [price,setPrice]=useState('0.004');
   const [armed,setArmed]=useState(false);
   const [form,setForm]=useState({name:'',collection:'',maxTotal:'100',maxPerWallet:'1'});
-  const enabled=CONTRACTS.gameEngine!==ZERO_ADDRESS;
-  const ownerR=useReadContract({address:CONTRACTS.gameEngine,abi:GAME_ENGINE_ABI,functionName:'owner',query:{enabled}});
-  const communitiesR=useReadContract({address:CONTRACTS.gameEngine,abi:GAME_ENGINE_ABI,functionName:'getInvitedNftCommunities',query:{enabled,refetchInterval:15000}});
-  const preEndR=useReadContract({address:CONTRACTS.gameEngine,abi:GAME_ENGINE_ABI,functionName:'s_preMintEnd',query:{enabled,refetchInterval:15000}});
-  const priceR=useReadContract({address:CONTRACTS.gameEngine,abi:GAME_ENGINE_ABI,functionName:'s_communityMintprice',query:{enabled,refetchInterval:15000}});
-  const mintedR=useReadContract({address:CONTRACTS.gameEngine,abi:GAME_ENGINE_ABI,functionName:'s_totalMinted',query:{enabled,refetchInterval:15000}});
-  const maxSupplyR=useReadContract({address:CONTRACTS.gameEngine,abi:GAME_ENGINE_ABI,functionName:'MAX_SUPPLY',query:{enabled}});
-  const owner=String(ownerR.data||ZERO_ADDRESS); const isOwner=!!address&&owner.toLowerCase()===address.toLowerCase();
-  const preMintEnd=Boolean(preEndR.data); const communityPrice=BigInt(priceR.data??0n); const totalMinted=Number(mintedR.data??0n); const maxSupply=Number(maxSupplyR.data??0n);
-  const communities=useMemo(()=>((communitiesR.data||[]) as readonly any[]).map((c,i)=>norm(c,i)),[communitiesR.data]);
+  const [read,setRead]=useState<{owner:string;protocol:ProtocolSnapshot;communities:Community[]}|null>(null);
+  const [readError,setReadError]=useState<string|null>(null);
+  const refresh=async()=>{try{forgetReadCache('/api/read/admin/community');const r=await readApi<any>('/api/read/admin/community',{fresh:true,ttlMs:0,persist:false});setRead(r.value);setReadError(null);}catch(e:any){setReadError(e?.message||'Admin read unavailable.')}};
+  useEffect(()=>{void refresh()},[]); // eslint-disable-line react-hooks/exhaustive-deps
+  const owner=String(read?.owner||ZERO_ADDRESS); const isOwner=!!address&&owner.toLowerCase()===address.toLowerCase();
+  const preMintEnd=Boolean(read?.protocol?.preMintEnd); const communityPrice=BigInt(read?.protocol?.communityMintPrice||'0'); const totalMinted=Number(BigInt(read?.protocol?.totalMinted||'0')); const maxSupply=Number(BigInt(read?.protocol?.maxSupply||'0'));
+  const communities=useMemo(()=>((read?.communities||[]) as readonly any[]).map((c,i)=>norm(c,i)),[read?.communities]);
   const communityMinted=communities.reduce((n,c)=>n+c.amountMinted,0); const configuredCap=communities.reduce((n,c)=>n+c.maxTotalAmountAllowed,0);
-  const refresh=()=>{communitiesR.refetch();preEndR.refetch();priceR.refetch();mintedR.refetch();};
 
-  if(!address||!isOwner)return <><Header isolated/><main className="mx-auto max-w-5xl p-6 md:p-10"><Panel className="p-8 text-center md:p-12"><Kicker>community pre-mint / owner only</Kicker><h1 className="font-display text-5xl uppercase md:text-7xl">ACCESS DENIED</h1><p className="mx-auto mt-5 max-w-2xl text-xs leading-6 text-zinc-500">The latest integration manual moves invited-community configuration into GameEngine and restricts this management surface to the GameEngine Owner. Connect the owner wallet to continue.</p><div className="mt-6 flex justify-center"><ConnectButton showBalance={false}/></div></Panel></main></>;
+  if(!address||!isOwner)return <><Header isolated/><main className="mx-auto max-w-5xl p-6 md:p-10"><Panel className="p-8 text-center md:p-12"><Kicker>community pre-mint / owner only</Kicker><h1 className="font-display text-5xl uppercase md:text-7xl">ACCESS DENIED</h1><p className="mx-auto mt-5 max-w-2xl text-xs leading-6 text-zinc-500">The latest integration manual moves invited-community configuration into GameEngine and restricts this management surface to the GameEngine Owner. Connect the owner wallet to continue.</p>{readError&&<p className="mt-3 text-[10px] text-[#ff5b2e]">{readError}</p>}<div className="mt-6 flex justify-center"><ConnectButton showBalance={false}/></div></Panel></main></>;
 
   return <><Header isolated/><main className="min-h-screen px-4 py-6 md:px-8"><div className="mx-auto max-w-[1500px]">
     <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end"><div><Kicker>game engine / owner console</Kicker><h1 className="font-display text-5xl uppercase md:text-7xl">COMMUNITY PRE-MINT</h1><p className="mt-2 max-w-3xl text-xs leading-6 text-zinc-500">Invited NFT collections, dynamic pre-mint price and the irreversible switch to Public Mint now live directly in GameEngine. No separate CommunityMintController is used.</p></div>{!preMintEnd&&<button onClick={()=>setOpen(true)} className="action-btn">+ ADD INVITED COLLECTION</button>}</div>

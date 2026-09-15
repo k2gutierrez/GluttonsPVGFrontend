@@ -1,10 +1,9 @@
 'use client';
 import Link from 'next/link';
 import { useAtomValue } from 'jotai';
-import { useBalance, useBlockNumber, useReadContract } from 'wagmi';
-import { formatEther, type Address } from 'viem';
+import { formatEther } from 'viem';
 import { protocolAtom } from '@/state/game';
-import { CONTRACTS, ERC20_ABI, GAME_HOUR_SECONDS, NATIVE_SYMBOL, PRIZE_VAULT_ABI, ROYALTY_TREASURY_ABI, ZERO_ADDRESS } from '@/lib/constants';
+import { CONTRACTS, GAME_HOUR_SECONDS, NATIVE_SYMBOL, ROYALTY_TREASURY_ABI } from '@/lib/constants';
 import { Panel, Kicker } from './Terminal';
 import { Header } from './Header';
 import { TxButton } from './TxButton';
@@ -23,11 +22,6 @@ const phaseCopy: Record<string,{eyebrow:string;line:string}> = {
 
 export function LiveDashboard() {
   const p = useAtomValue(protocolAtom);
-  const pot = useBalance({ address: CONTRACTS.prizeVault, query: { refetchInterval: 20_000 } });
-  const block = useBlockNumber({ watch: false, query: { refetchInterval: 20_000 } });
-  const wethAddressR = useReadContract({ address: CONTRACTS.prizeVault, abi: PRIZE_VAULT_ABI, functionName: 'getWethAddress', query: { enabled: CONTRACTS.prizeVault !== ZERO_ADDRESS } });
-  const wethAddress = (wethAddressR.data || ZERO_ADDRESS) as Address;
-  const wethPot = useReadContract({ address: wethAddress, abi: ERC20_ABI, functionName: 'balanceOf', args: [CONTRACTS.prizeVault], query: { enabled: wethAddress !== ZERO_ADDRESS, refetchInterval: 20_000 } });
   const gameHourSeconds = Number(p.gameHourSeconds > 0n ? p.gameHourSeconds : BigInt(GAME_HOUR_SECONDS));
   const maxSupply = Number(p.maxSupply);
   const minted = Number(p.totalMinted || p.startingPopulation);
@@ -35,8 +29,10 @@ export function LiveDashboard() {
   const alive = Number(p.aliveCount);
   const meal = Number(p.currentMealSeconds) / gameHourSeconds;
   const bars = Number(p.completedBars);
-  const totalPotWei = (pot.data?.value || 0n) + BigInt(wethPot.data || 0n);
-  const potValue = pot.data || wethPot.data !== undefined ? Number(formatEther(totalPotWei)).toLocaleString(undefined, { maximumFractionDigits: 4 }) : '—';
+  const potNative = BigInt((p as any).potNative || 0n);
+  const potWeth = BigInt((p as any).potWeth || 0n);
+  const totalPotWei = potNative + potWeth;
+  const potValue = p.synced ? Number(formatEther(totalPotWei)).toLocaleString(undefined, { maximumFractionDigits: 4 }) : '—';
   const phase = !p.synced ? 'LIVE' : p.isSettled ? 'SETTLED' : p.currentPhase;
   const lsThreshold = Number(p.lastSupperThreshold || 0n) || Math.ceil(S * .025);
   const truceThreshold = Number(p.truceThreshold || 0n) || Math.max(2, Math.ceil(S * .01));
@@ -51,20 +47,20 @@ export function LiveDashboard() {
           : 'FINAL SETTLEMENT';
   const copy = phaseCopy[phase] || {eyebrow:'LIVE PROTOCOL',line:'STAY ALIVE. HOWEVER YOU CAN.'};
 
-  if (!p.synced) return <><Header/><main className="page-shell live-page"><Panel className="protocol-hard-sync"><Kicker>live deployment confirmed</Kicker><h1>RESTORING THE STADIUM.</h1><p>Game Start is confirmed for this GameEngine. Counters and phase stay hidden until a coherent onchain snapshot arrives.</p><div className="endgame-sync-line"><i/><span>READING PHASE · ALIVE · SUPPLY · MEAL · GAME CLOCK</span></div></Panel></main></>;
+  if (!p.synced) return <><Header/><main className="page-shell live-page"><Panel className="protocol-hard-sync"><Kicker>live deployment confirmed</Kicker><h1>RESTORING THE STADIUM.</h1><p>Game Start is confirmed for this GameEngine. Counters and phase stay hidden until a coherent indexed snapshot of the canonical contracts arrives.</p><div className="endgame-sync-line"><i/><span>READING PHASE · ALIVE · SUPPLY · MEAL · GAME CLOCK</span></div></Panel></main></>;
 
   return <><Header/><main className={`page-shell live-page phase-${phase.toLowerCase().replace('_','-')}`}>
-    {p.rpcDegraded&&p.synced&&<Panel className="sync-state-banner degraded"><b>CHAIN SYNC DEGRADED</b><span>Showing the last confirmed onchain state while the RPC reconnects. Unknown values are never replaced with fake defaults.</span></Panel>}
+    {p.rpcDegraded&&p.synced&&<Panel className="sync-state-banner degraded"><b>CHAIN SYNC DEGRADED</b><span>Showing the last confirmed canonical state while the shared read service catches up. Unknown values are never replaced with fake defaults.</span></Panel>}
     <EndgameExperience/>
     <div className="ambient-word ambient-a"><WeightWord word={phase==='LAST_SUPPER'?'EAT':phase==='SETTLED'?'CLOSED':'HUNGER'}/></div>
     <section className="live-hero" data-reveal>
       <div><Kicker>live protocol / public stadium</Kicker><MorphTicker/><span className="phase-eyebrow">{copy.eyebrow}</span><h1 className="live-title idle-glitch" data-text={phase}><Scramble loop>{phase}</Scramble></h1><p>{copy.line} <b>{phase==='SETTLED'?'': 'THE POT KEEPS GROWING.'}</b></p></div>
-      <div className="chain-heartbeat"><i/><span>CHAIN BLOCK</span><strong>{block.data ? block.data.toString() : 'SYNCING'}</strong><small>{p.lastSuccessfulSyncAt ? `STATE ${Math.max(0,Math.floor((Date.now()-p.lastSuccessfulSyncAt)/1000))}s AGO` : 'AWAITING STATE'}</small></div>
+      <div className="chain-heartbeat"><i/><span>INDEXED BLOCK</span><strong>{p.indexedBlock ? p.indexedBlock.toLocaleString() : 'SYNCING'}</strong><small>{p.indexedAt ? `INDEX ${Math.max(0,Math.floor((Date.now()-p.indexedAt)/1000))}s AGO` : 'AWAITING STATE'}</small></div>
     </section>
     <div className="state-grid">
       <Metric title="MINTED" value={maxSupply ? `${minted.toLocaleString()} / ${maxSupply.toLocaleString()}` : 'SYNCING'} bar={maxSupply?pct(minted, maxSupply):undefined}/>
       <Metric title="ALIVE" value={`${alive.toLocaleString()} / ${S || minted}`} bar={pct(alive, S || minted)}/>
-      <Metric title={p.isSettled?'FINAL POT SNAPSHOT':'THE POT'} value={`${potValue} ${NATIVE_SYMBOL}`} sub={p.isSettled?'CURRENT VAULT BALANCE AFTER CLAIMS MAY FALL':`${NATIVE_SYMBOL} + WETH IN PRIZE VAULT`} pulse={!p.isSettled}/>
+      <Metric title={p.isSettled?'VAULT REMAINING':'THE POT'} value={`${potValue} ${NATIVE_SYMBOL}`} sub={p.isSettled?'FINAL SNAPSHOT / CLAIM DETAILS ARE LOCKED IN FINAL TABLE':`${NATIVE_SYMBOL} + WETH IN PRIZE VAULT`} pulse={!p.isSettled}/>
       <Metric title="CURRENT MEAL" value={p.isSettled?'CLOSED':`+${meal.toFixed(2)}H`} bar={p.isSettled?undefined:pct(meal, 24)}/>
       <Metric title="METABOLISM" value={`BAR ${bars}`} sub={`${p.totalNormalFeeds.toLocaleString()} VALID FEEDS`}/>
       <Metric title="NEXT" value={next} small/>
@@ -87,7 +83,7 @@ export function LiveDashboard() {
       </Panel>
     </div>
     {!p.isSettled ? <div className="mt-4 space-y-4"><LiveMatrix/></div> : <Panel className="mt-4 final-archive-note"><Kicker>final archive</Kicker><b>SURVIVAL CLOCKS ARE CLOSED.</b><span>The settlement panel above is the canonical final result. The live Matrix no longer advances after the game is closed, preventing post-settlement clock aging from rewriting the story.</span><Link href="/leaderboard" className="ghost-btn">OPEN FINAL TABLE →</Link></Panel>}
-    <div className="retro-marquee" aria-hidden="true"><div>ALIVE::{alive} // POT::{potValue} // MEAL::{p.isSettled?'CLOSED':`${meal.toFixed(2)}H`} // BAR::{bars} // PHASE::{phase} // BLOCK::{block.data?.toString() || '...'} //</div></div>
+    <div className="retro-marquee" aria-hidden="true"><div>ALIVE::{alive} // POT::{potValue} // MEAL::{p.isSettled?'CLOSED':`${meal.toFixed(2)}H`} // BAR::{bars} // PHASE::{phase} // BLOCK::{p.indexedBlock?.toString() || '...'} //</div></div>
   </main></>;
 }
 function Metric({ title, value, bar, small, sub, pulse }: { title: string; value: string; bar?: number; small?: boolean; sub?: string; pulse?: boolean }) { return <Panel className={`metric-card ${pulse ? 'pot-pulse' : ''}`}><span>{title}</span><strong className={small ? 'small' : ''}>{value}</strong>{sub && <small>{sub}</small>}{bar !== undefined && <div className="bar"><i style={{ width: `${bar}%` }}/></div>}</Panel>; }

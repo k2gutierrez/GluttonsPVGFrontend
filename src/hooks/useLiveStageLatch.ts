@@ -1,43 +1,64 @@
 'use client';
+
 import { useCallback } from 'react';
 import { useSetAtom } from 'jotai';
-import { usePublicClient } from 'wagmi';
 import { useRouter } from 'next/navigation';
-import { ACTIVE_CHAIN, CONTRACTS, GAME_ENGINE_ABI, ZERO_ADDRESS } from '@/lib/constants';
+import { ACTIVE_CHAIN, CONTRACTS } from '@/lib/constants';
+import { readApi, forgetReadCache } from '@/lib/read-api';
+import { validProtocolSnapshot, type ProtocolSnapshot } from '@/lib/read-model';
 import { protocolAtom } from '@/state/game';
-import { readContractRetry } from '@/lib/rpc';
 
-const LIVE_LOCK_KEY = `gluttons:live-locked:${ACTIVE_CHAIN.id}:${CONTRACTS.gameEngine.toLowerCase()}`;
-/** Immediate post-transaction stage verification. Never waits for the background poller. */
+const KEY = `gluttons:live-locked:${ACTIVE_CHAIN.id}:${CONTRACTS.gameEngine.toLowerCase()}`;
+
+function isThisDeployment(p: ProtocolSnapshot) {
+  return validProtocolSnapshot(p)
+    && p.chainId === ACTIVE_CHAIN.id
+    && String(p.deployment).toLowerCase() === CONTRACTS.gameEngine.toLowerCase();
+}
+
 export function useLiveStageLatch() {
-  const client = usePublicClient();
   const set = useSetAtom(protocolAtom);
   const router = useRouter();
 
   return useCallback(async () => {
-    if (!client || CONTRACTS.gameEngine === ZERO_ADDRESS) return false;
-    try {
-      const gameStart = BigInt(await readContractRetry(client,{address:CONTRACTS.gameEngine,abi:GAME_ENGINE_ABI,functionName:'s_gameStart'} as any,2) as bigint);
-      const phaseCode = gameStart > 0n ? Number(await readContractRetry(client,{address:CONTRACTS.gameEngine,abi:GAME_ENGINE_ABI,functionName:'currentPhaseCode'} as any,2) as number) : 0;
-      const live = gameStart > 0n || phaseCode > 0;
-      set(prev => ({
-        ...prev,
-        gameStart: gameStart > 0n ? gameStart : prev.gameStart,
-        phaseCode: live ? phaseCode : prev.phaseCode,
-        currentPhase: live ? ['PRE_GAME','FEAST','PLAGUE','LS_WARNING','LAST_SUPPER','SETTLED'][phaseCode] ?? prev.currentPhase : prev.currentPhase,
-        stageResolved: true,
-        synced: prev.synced || live,
-        rpcDegraded: false,
-        liveLocked: prev.liveLocked || live,
-      }));
-      if (live) {
-        try { window.localStorage.setItem(LIVE_LOCK_KEY,'1'); } catch {}
-        router.replace('/');
-      }
-      return live;
-    } catch {
-      // Keep the existing one-way state. Background GameSync will retry.
-      return false;
+    forgetReadCache('/api/read/protocol');
+
+    // A just-confirmed sellout/mint can arrive a few seconds before the shared indexer.
+    // We retry the shared read model only. We never guess LIVE from totalMinted and we
+    // never send a browser RPC read to decide the website stage.
+    for (let i = 0; i < 8; i++) {
+      try {
+        const r = await readApi<ProtocolSnapshot>('/api/read/protocol', {
+          fresh: true,
+          ttlMs: 0,
+          persist: true,
+        });
+        if (!isThisDeployment(r.value)) throw new Error('READ_MODEL_DEPLOYMENT_MISMATCH');
+
+        const gs = BigInt(r.value.gameStart);
+        if (gs > 0n) {
+          try { localStorage.setItem(KEY, '1'); } catch {}
+          set(x => ({
+            ...x,
+            gameStart: gs,
+            phaseCode: r.value.phaseCode,
+            currentPhase: r.value.currentPhase,
+            totalMinted: BigInt(r.value.totalMinted),
+            maxSupply: BigInt(r.value.maxSupply),
+            startingPopulation: BigInt(r.value.startingPopulation),
+            tokenStateBlock: Number(r.value.tokenStateBlock || 0),
+            stageResolved: true,
+            synced: true,
+            rpcDegraded: r.stale,
+            liveLocked: true,
+            lastSuccessfulSyncAt: Date.now(),
+          }));
+          router.replace('/');
+          return true;
+        }
+      } catch {}
+      await new Promise(r => setTimeout(r, 700 + i * 250));
     }
-  }, [client, router, set]);
+    return false;
+  }, [router, set]);
 }

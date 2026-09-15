@@ -34,9 +34,9 @@ export function LiveMatrix({ compactBoard = true }: { compactBoard?: boolean }) 
     <Panel className="stadium-matrix-panel p-5 md:p-7">
       <div className="matrix-head">
         <div><Kicker>the organism / starting population</Kicker><h2>LIVE GLUTTON MATRIX</h2><p>One fixed cell per token ID. Death changes the cell; consumption burns it out. The grid never reorders.</p></div>
-        <div className="matrix-sync"><span>{loading ? 'INITIAL SYNC' : 'ROTATING LIVE READ'}</span><strong>{Math.min(scanned,totalMinted).toLocaleString()} / {totalMinted.toLocaleString()}</strong><small>{batchSize} IDs / RPC page</small></div>
+        <div className="matrix-sync"><span>{loading ? 'INITIAL SYNC' : 'SHARED INDEX SNAPSHOT'}</span><strong>{Math.min(scanned,totalMinted).toLocaleString()} / {totalMinted.toLocaleString()}</strong><small>{batchSize.toLocaleString()} indexed positions / snapshot</small></div>
       </div>
-      {error && <div className="matrix-error">RPC READ DEGRADED · {error}</div>}
+      {error && <div className="matrix-error">READ MODEL DEGRADED · {error}</div>}
       {accountingPending && <div className="accounting-pending"><b>CHAIN ACCOUNTING CATCHING UP</b><span>The Matrix resolves {derivedAlive} logically living tokens while GameEngine.s_aliveCount reports {p.aliveCount.toString()}. Logical death timestamps are deterministic; phase/actions remain governed by GameEngine until permissionless Reap/keeper accounting materializes the pending deaths.</span></div>}
       <div className="matrix-legend" aria-label="Matrix legend">
         {['ALIVE','HUNGRY','FASTING','FINAL_BITE','FRESH','ROTTEN','CONSUMED','UNMINTED'].map(k => <span key={k}><i className={`matrix-dot state-${k.toLowerCase().replace('_','-')}`}/>{label[k]}</span>)}

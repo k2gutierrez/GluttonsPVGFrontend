@@ -1,0 +1,4 @@
+'use client';
+export default function GlobalError({reset}:{error:Error&{digest?:string};reset:()=>void}){
+ return <html lang="en"><body style={{margin:0,background:'#060908',color:'#f2f0ea',fontFamily:'monospace'}}><main style={{minHeight:'100vh',display:'grid',placeItems:'center',padding:'24px'}}><section style={{width:'min(720px,100%)',border:'1px solid #71341f',borderRadius:'12px',padding:'32px',background:'#0a0e0c'}}><div style={{color:'#ff5b2e',letterSpacing:'.18em',fontSize:'12px'}}>// SYSTEM RECOVERY</div><h1 style={{fontSize:'clamp(42px,8vw,86px)',lineHeight:.9,margin:'24px 0'}}>GLUTTONS IS STILL ONCHAIN.</h1><p style={{color:'#9b9b96',lineHeight:1.7}}>The application shell failed to render. This screen does not change protocol state.</p><button onClick={reset} style={{marginTop:'20px',padding:'14px 18px',background:'#ff5b2e',border:0,fontWeight:800,cursor:'pointer'}}>RELOAD TERMINAL</button></section></main></body></html>;
+}

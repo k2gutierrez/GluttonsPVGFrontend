@@ -27,7 +27,7 @@ export function Header({ isolated = false }: { isolated?: boolean }) {
       <Link href="/" className="brand">GLUTTONS<span>//</span></Link>
       {stage !== 'awareness' && stage !== 'syncing' && <nav className="main-nav">
         {links.map(l => <Link key={l.href} href={l.href}>{l.label}</Link>)}
-        {stage === 'live' && <a href={SITE.openSeaUrl} target="_blank">OPENSEA ↗</a>}
+        {stage === 'live' && <a href={SITE.openSeaUrl} target="_blank" rel="noopener noreferrer">OPENSEA ↗</a>}
       </nav>}
       <div className="header-actions ml-auto flex items-center gap-3">
         <span className="header-network hidden text-[9px] uppercase tracking-[.18em] text-zinc-600 lg:block">{ACTIVE_CHAIN.name.toUpperCase()} / {stage === 'syncing' ? 'SYNCING' : stage === 'awareness' ? 'PRE-MINT_SIGNAL' : stage === 'mint' ? (p.preMintEnd ? 'PUBLIC_MINT' : 'COMMUNITY_PRE_MINT') : !p.synced ? 'LIVE_SYNCING' : p.currentPhase}</span>
@@ -38,7 +38,7 @@ export function Header({ isolated = false }: { isolated?: boolean }) {
     </div>
     {stage !== 'awareness' && stage !== 'syncing' && menuOpen && <nav id="mobile-nav" className="mobile-nav">
       {links.map(l => <Link key={l.href} href={l.href} onClick={() => setMenuOpen(false)}>{l.label}</Link>)}
-      {stage === 'live' && <a href={SITE.openSeaUrl} target="_blank" onClick={() => setMenuOpen(false)}>OPENSEA ↗</a>}
+      {stage === 'live' && <a href={SITE.openSeaUrl} target="_blank" rel="noopener noreferrer" onClick={() => setMenuOpen(false)}>OPENSEA ↗</a>}
     </nav>}
   </header>;
 }

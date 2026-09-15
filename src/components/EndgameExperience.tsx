@@ -47,7 +47,7 @@ export function EndgameExperience({ compact = false }: { compact?: boolean }) {
 
   if (!p.isSettled && aliveNow === 1) {
     const sole = table.sole;
-    const accurateTable = table.live.length === 1;
+    const accurateTable = !table.degraded && table.live.length === 1;
     return <Panel className={`endgame-panel sole-survivor ${compact ? 'compact' : ''}`}>
       <Kicker>last glutton standing</Kicker>
       <div className="last-standing-grid">
@@ -74,7 +74,7 @@ export function EndgameExperience({ compact = false }: { compact?: boolean }) {
     const alive = Number(p.aliveCount);
     const threshold = Number(p.truceThreshold);
     const truceOpen = alive > 1 && alive <= threshold;
-    const accurateTable = table.live.length === alive;
+    const accurateTable = !table.degraded && table.live.length === alive;
 
     return <Panel className={`endgame-panel truce ${truceOpen ? 'open' : 'locked'} ${compact ? 'compact' : ''}`}>
       <div className="truce-head">
@@ -101,7 +101,7 @@ export function EndgameExperience({ compact = false }: { compact?: boolean }) {
   const winner = settlement.shares > 0n;
   const totalShares = Number(settlement.totalShares);
   const single = settlement.totalShares === 1n;
-  const globallyClaimed = settlement.totalShares > 0n && settlement.totalClaimedShares >= settlement.totalShares;
+  const claimedOnchain = settlement.shares > 0n && settlement.claimStatusKnown && settlement.claimableShares === 0n;
   const markClaimed = () => {
     setClaimedNow(true);
     if (localClaimKey) try { window.localStorage.setItem(localClaimKey, '1'); } catch {}
@@ -115,9 +115,9 @@ export function EndgameExperience({ compact = false }: { compact?: boolean }) {
     {!address ? <div className="settlement-message"><b>CONNECT A WALLET TO CHECK YOUR ENTITLEMENT.</b><span>The final result is public. Claim controls only appear for winning wallets.</span></div> : settlement.loading && settlement.totalShares === 0n ? <div className="settlement-message"><b>READING YOUR FINAL SHARE…</b></div> : winner ? <div className="winner-claim-grid">
       <div className="winner-verdict"><span>YOUR VERDICT</span><h3>YOU SURVIVED.</h3><b>{settlement.shares.toString()} / {settlement.totalShares.toString()} WINNING SHARE{settlement.shares === 1n ? '' : 'S'} · {pctShare.toFixed(2)}%</b></div>
       <div className="claim-amount"><span>YOUR CLAIM</span><strong>{formatEther(settlement.ethClaim)} {NATIVE_SYMBOL}</strong><strong>{formatEther(settlement.wethClaim)} WETH</strong><small>Snapshot amounts. PrizeVault pays in-kind.</small></div>
-      <div className="claim-control">{claimedNow || (single && globallyClaimed) ? <div className="claimed-badge">CLAIM CONFIRMED ✓</div> : <TxButton label={single ? 'CLAIM THE POT' : 'CLAIM YOUR SHARE'} successLabel="POT CLAIMED ✓" address={CONTRACTS.prizeVault} abi={PRIZE_VAULT_ABI} functionName="claimPrize" preflight onConfirmed={markClaimed}/>}<small>Duplicate claims are rejected by PrizeVault.</small></div>
+      <div className="claim-control">{claimedNow || claimedOnchain ? <div className="claimed-badge">CLAIM CONFIRMED ✓</div> : settlement.degraded ? <div className="claimed-badge">SETTLEMENT STATE SYNCING — CLAIM PAUSED</div> : !settlement.claimStatusKnown ? <div className="claimed-badge">CLAIM STATUS SYNCING…</div> : <TxButton label={single ? 'CLAIM THE POT' : 'CLAIM YOUR SHARE'} successLabel="POT CLAIMED ✓" address={CONTRACTS.prizeVault} abi={PRIZE_VAULT_ABI} functionName="claimPrize" preflight onConfirmed={markClaimed}/>}<small>Claimability is indexed from PrizeVault release events; duplicate claims are rejected onchain.</small></div>
     </div> : <div className="settlement-message loser"><b>YOU DID NOT SURVIVE.</b><span>No claim button is shown because this wallet has 0 winning shares.</span></div>}
-    {!compact && table.live.length>0 && <div className="settled-final-table"><span>FINAL SURVIVING TOKENS</span><div>{table.live.map(t=><b key={t.id}>{fmtToken(t.id)} <small>{shortAddress(t.owner)}</small></b>)}</div></div>}
+    {!compact && table.live.length>0 && <div className="settled-final-table"><span>FINAL WINNING POSITION(S)</span><div>{table.live.map(t=><b key={t.id}>{fmtToken(t.id)} <small>{shortAddress(t.owner)}</small></b>)}</div></div>}
     {!compact && <div className="settlement-public-stats"><span>FINAL SHARES <b>{settlement.totalShares.toString()}</b></span><span>CLAIMED SHARES <b>{settlement.totalClaimedShares.toString()}</b></span><span>TIEBREAK TOKEN <b>{settlement.tiebreakCandidate > 0n ? fmtToken(settlement.tiebreakCandidate) : 'N/A'}</b></span></div>}
     {settlement.error && <div className="matrix-error">SETTLEMENT READ DEGRADED · {settlement.error}</div>}
   </Panel>;

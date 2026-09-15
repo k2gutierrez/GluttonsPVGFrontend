@@ -1,13 +1,13 @@
 'use client';
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAtomValue } from 'jotai';
-import { useAccount, useReadContract, useReadContracts } from 'wagmi';
+import { useAccount } from 'wagmi';
 import { formatEther, type Address } from 'viem';
 import { protocolAtom } from '@/state/game';
 import {
   CONTRACTS, GAME_ENGINE_ABI, MINT_PRICE, NATIVE_SYMBOL,
-  PARTNER_ERC721_ABI, PUBLIC_MAX_PER_WALLET, ZERO_ADDRESS,
+  PUBLIC_MAX_PER_WALLET,
 } from '@/lib/constants';
 import { Header } from './Header';
 import { Panel, Kicker } from './Terminal';
@@ -15,33 +15,13 @@ import { PreRevealArt } from './PreRevealArt';
 import { TxButton } from './TxButton';
 import { FlipWord, MorphTicker, Scramble, WeightWord } from '@/components/fx/RetroText';
 import { useLiveStageLatch } from '@/hooks/useLiveStageLatch';
+import { useMintRead, type MintCommunity } from '@/hooks/useMintRead';
 
 const pct = (n: number, d: number) => d ? Math.max(0, Math.min(100, n / d * 100)) : 0;
 const fmt = (s: number) => { const d = Math.max(0, s); const h = Math.floor(d / 3600); const m = Math.floor((d % 3600) / 60); const x = d % 60; return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(x).padStart(2,'0')}`; };
 const short = (s: string) => `${s.slice(0, 6)}…${s.slice(-4)}`;
 
-type Community = {
-  id: number;
-  name: string;
-  collectionAddress: Address;
-  maxTotalAmountAllowed: number;
-  maxPerWallet: number;
-  allowed: boolean;
-  amountMinted: number;
-};
-
-function normalizeCommunity(raw: any, id: number): Community {
-  const a = Array.isArray(raw) ? raw : raw || {};
-  return {
-    id,
-    name: String(a.name ?? a[0] ?? `COMMUNITY #${id}`),
-    collectionAddress: String(a.collectionAddress ?? a[1] ?? ZERO_ADDRESS) as Address,
-    maxTotalAmountAllowed: Number(a.maxTotalAmountAllowed ?? a[2] ?? 0),
-    maxPerWallet: Number(a.maxPerWallet ?? a[3] ?? 0),
-    allowed: Boolean(a.allowed ?? a[4] ?? false),
-    amountMinted: Number(a.amountMinted ?? a[5] ?? 0),
-  };
-}
+type Community = MintCommunity;
 
 export function MintStage() {
   const p = useAtomValue(protocolAtom);
@@ -55,52 +35,12 @@ export function MintStage() {
   const backstopReached = backstop > 0 && now >= backstop;
   const remaining = backstop > 0 ? backstop - now : 0;
 
-  const communityRead = useReadContract({
-    address: CONTRACTS.gameEngine,
-    abi: GAME_ENGINE_ABI,
-    functionName: 'getInvitedNftCommunities',
-    query: { enabled: CONTRACTS.gameEngine !== ZERO_ADDRESS && !p.preMintEnd, refetchInterval: 15_000 },
-  });
-  const communities = useMemo(() => {
-    const data = (communityRead.data || []) as readonly any[];
-    return data.map((c, i) => normalizeCommunity(c, i));
-  }, [communityRead.data]);
+  const mintRead = useMintRead(address);
+  const communities = mintRead.communities;
+  const balanceFor = mintRead.balanceFor;
+  const walletCommunityMintedFor = mintRead.walletMintedFor;
+  const checkedFor = mintRead.checkedFor;
 
-  // UX-only invited-NFT discovery. GameEngine re-verifies holder status in preMint().
-  const holdings = useReadContracts({
-    contracts: communities.map(c => ({
-      address: c.collectionAddress,
-      abi: PARTNER_ERC721_ABI,
-      functionName: 'balanceOf',
-      args: [address ?? ZERO_ADDRESS],
-    })) as any,
-    allowFailure: true,
-    query: { enabled: !!address && communities.length > 0 && !p.preMintEnd, refetchInterval: 20_000 },
-  });
-
-  // Canonical per-wallet community usage. This is now readable because
-  // s_amountMintPerCollection is public in the reviewed GameEngine.
-  const communityWalletMints = useReadContracts({
-    contracts: communities.map(c => ({
-      address: CONTRACTS.gameEngine,
-      abi: GAME_ENGINE_ABI,
-      functionName: 's_amountMintPerCollection',
-      args: [address ?? ZERO_ADDRESS, c.collectionAddress],
-    })) as any,
-    allowFailure: true,
-    query: { enabled: !!address && communities.length > 0 && !p.preMintEnd, refetchInterval: 15_000 },
-  });
-
-  const balanceFor = (id: number) => {
-    const index = communities.findIndex(c => c.id === id);
-    const r: any = index >= 0 ? holdings.data?.[index] : undefined;
-    return r?.status === 'success' ? BigInt(r.result ?? 0n) : 0n;
-  };
-  const walletCommunityMintedFor = (id: number) => {
-    const index = communities.findIndex(c => c.id === id);
-    const r: any = index >= 0 ? communityWalletMints.data?.[index] : undefined;
-    return r?.status === 'success' ? BigInt(r.result ?? 0n) : 0n;
-  };
 
   if (!p.synced) return <><Header/><main className="page-shell mint-page"><Panel className="protocol-hard-sync"><Kicker>mint deployment confirmed</Kicker><h1>RESTORING MINT STATE.</h1><p>Mint phase, supply, price and backstop stay hidden until one coherent GameEngine snapshot arrives.</p><div className="endgame-sync-line"><i/><span>READING MINT PHASE · SUPPLY · PRICE · BACKSTOP</span></div></Panel></main></>;
 
@@ -122,35 +62,28 @@ export function MintStage() {
 
       <Panel className="mint-console p-6 md:p-8">
         <Kicker>{p.preMintEnd ? 'public mint console' : 'community access console'}</Kicker>
+        {mintRead.error && <div className="matrix-error mt-3">MINT READ DEGRADED · {mintRead.error}</div>}
         <div className="console-meter"><div className="flex justify-between"><span>MINTED</span><b>{minted.toLocaleString()} / {maxSupply.toLocaleString()}</b></div><div className="bar mt-3"><i style={{ width: `${pct(minted, maxSupply)}%` }}/></div></div>
         <div className="console-block"><span>GAME START</span>{backstop ? <strong className="countdown-color">{backstopReached ? 'BACKSTOP REACHED' : fmt(remaining)}</strong> : <strong>SELLOUT / BACKSTOP</strong>}<small>Sellout starts automatically. Backstop can be started permissionlessly.</small></div>
         {backstopReached
           ? <TxButton label="START GAME" address={CONTRACTS.gameEngine} abi={GAME_ENGINE_ABI} functionName="ensureStarted" onConfirmed={verifyLiveStage} className="mt-5 w-full danger-pulse"/>
           : p.preMintEnd
-            ? <PublicMint/>
-            : <CommunityPreMint communities={communities} balanceFor={balanceFor} walletMintedFor={walletCommunityMintedFor} connected={!!address}/>} 
+            ? <PublicMint used={mintRead.normalMinted} refreshMint={mintRead.refresh}/>
+            : <CommunityPreMint communities={communities} balanceFor={balanceFor} walletMintedFor={walletCommunityMintedFor} connected={!!address} refreshMint={mintRead.refresh}/>} 
         <div className="unrevealed-note">ART REMAINS UNREVEALED UNTIL GAME START.</div>
       </Panel>
     </div>
 
-    {!p.preMintEnd && !backstopReached && <CommunityDirectory communities={communities} balanceFor={balanceFor} walletMintedFor={walletCommunityMintedFor} connected={!!address}/>} 
+    {!p.preMintEnd && !backstopReached && <CommunityDirectory communities={communities} balanceFor={balanceFor} walletMintedFor={walletCommunityMintedFor} checkedFor={checkedFor} connected={!!address}/>} 
     <div className="retro-marquee" aria-hidden="true"><div>{p.preMintEnd ? `PUBLIC MINT // MAX 4 / WALLET // LIVE WALLET COUNTER // 0.004 ${NATIVE_SYMBOL} // 95% POT //` : 'COMMUNITY PRE-MINT // INVITED NFT HOLDERS // LIVE WALLET COUNTER // DYNAMIC PRICE //'} UNREVEALED // SELLOUT =&gt; GAME_START // 24:00:00 // FOOD GETS WORSE //</div></div>
   </main></>;
 }
 
-function PublicMint() {
+function PublicMint({used,refreshMint}:{used:number;refreshMint:()=>Promise<void>}) {
   const p = useAtomValue(protocolAtom);
   const verifyLiveStage = useLiveStageLatch();
   const { address } = useAccount();
   const [qty, setQty] = useState(1);
-  const walletMintRead = useReadContract({
-    address: CONTRACTS.gameEngine,
-    abi: GAME_ENGINE_ABI,
-    functionName: 's_normalMintAmount',
-    args: [address ?? ZERO_ADDRESS],
-    query: { enabled: !!address && CONTRACTS.gameEngine !== ZERO_ADDRESS, refetchInterval: 15_000 },
-  });
-  const used = Number(walletMintRead.data ?? 0n);
   const walletRemaining = Math.max(0, PUBLIC_MAX_PER_WALLET - used);
   const supplyRemaining = Math.max(0, Number(p.maxSupply) - Number(p.totalMinted));
   const maxQty = Math.max(0, Math.min(walletRemaining, supplyRemaining));
@@ -172,14 +105,14 @@ function PublicMint() {
       args={[BigInt(qty)]}
       value={MINT_PRICE * BigInt(qty)}
       disabled={!address || maxQty === 0 || qty > maxQty}
-      onConfirmed={verifyLiveStage}
+      onConfirmed={()=>{void refreshMint();verifyLiveStage();}}
       className="mt-4 w-full"
     />
-    <p className="mint-footnote">PUBLIC LIMIT: 4 GLUTTONS MAXIMUM PER WALLET. YOUR COUNTER IS READ DIRECTLY FROM <b>s_normalMintAmount(wallet)</b>. COMMUNITY PRE-MINTS USE A SEPARATE COUNTER.</p>
+    <p className="mint-footnote">PUBLIC LIMIT: 4 GLUTTONS MAXIMUM PER WALLET. YOUR COUNTER IS SERVED FROM THE SHARED READ LAYER AND RE-VERIFIED BY GAMEENGINE WHEN YOU MINT. COMMUNITY PRE-MINTS USE A SEPARATE COUNTER.</p>
   </div>;
 }
 
-function CommunityPreMint({ communities, balanceFor, walletMintedFor, connected }: { communities: Community[]; balanceFor: (id:number)=>bigint; walletMintedFor:(id:number)=>bigint; connected:boolean }) {
+function CommunityPreMint({ communities, balanceFor, walletMintedFor, connected, refreshMint }: { communities: Community[]; balanceFor: (id:number)=>bigint; walletMintedFor:(id:number)=>bigint; connected:boolean; refreshMint:()=>Promise<void> }) {
   const p = useAtomValue(protocolAtom);
   const verifyLiveStage = useLiveStageLatch();
   const active = communities.filter(c => c.allowed && c.amountMinted < c.maxTotalAmountAllowed);
@@ -205,7 +138,7 @@ function CommunityPreMint({ communities, balanceFor, walletMintedFor, connected 
 
   return <div className="mint-mode-block">
     <div className="mode-chip">PHASE 01 / COMMUNITY PRE-MINT</div>
-    <div className="console-block compact"><span>COMMUNITY PRICE / EACH</span><strong>{Number(formatEther(price)).toLocaleString(undefined,{maximumFractionDigits:6})} <i>{NATIVE_SYMBOL}</i></strong><small>DYNAMIC PRICE READ DIRECTLY FROM GAME ENGINE</small></div>
+    <div className="console-block compact"><span>COMMUNITY PRICE / EACH</span><strong>{Number(formatEther(price)).toLocaleString(undefined,{maximumFractionDigits:6})} <i>{NATIVE_SYMBOL}</i></strong><small>DYNAMIC PRICE · SHARED CANONICAL READ LAYER</small></div>
     {!connected ? <div className="eligibility-message">CONNECT WALLET TO CHECK INVITED NFT ACCESS AND YOUR COMMUNITY MINT COUNTER.</div> : !active.length ? <div className="eligibility-message">NO COMMUNITY IS ACTIVE RIGHT NOW.</div> : <>
       <label className="mint-select-label">SELECT INVITED COMMUNITY</label>
       <select className="mint-community-select" value={selected ?? ''} onChange={e=>{setSelected(e.target.value === '' ? null : Number(e.target.value));setQty(1)}}>
@@ -225,13 +158,13 @@ function CommunityPreMint({ communities, balanceFor, walletMintedFor, connected 
         <WalletMintCounter label={`YOUR ${c.name} MINTS`} used={walletUsed} cap={c.maxPerWallet}/>
       </>}
       <Quantity value={qty} setValue={setQty} max={maxQty}/>
-      <TxButton label={buttonLabel} address={CONTRACTS.gameEngine} abi={GAME_ENGINE_ABI} functionName="preMint" args={[BigInt(qty),BigInt(c?.id ?? 0)]} value={price * BigInt(qty)} disabled={!eligible || !c || maxQty === 0 || qty > maxQty} onConfirmed={verifyLiveStage} className="mt-4 w-full"/>
-      {c && <p className="mint-footnote">COMMUNITY CAP: {c.maxTotalAmountAllowed} · MAX PER WALLET: {c.maxPerWallet} · YOU USED: {walletUsed}. YOUR COUNTER IS READ DIRECTLY FROM <b>s_amountMintPerCollection(wallet, collection)</b>.</p>}
+      <TxButton label={buttonLabel} address={CONTRACTS.gameEngine} abi={GAME_ENGINE_ABI} functionName="preMint" args={[BigInt(qty),BigInt(c?.id ?? 0)]} value={price * BigInt(qty)} disabled={!eligible || !c || maxQty === 0 || qty > maxQty} onConfirmed={()=>{void refreshMint();verifyLiveStage();}} className="mt-4 w-full"/>
+      {c && <p className="mint-footnote">COMMUNITY CAP: {c.maxTotalAmountAllowed} · MAX PER WALLET: {c.maxPerWallet} · YOU USED: {walletUsed}. YOUR COUNTER IS SERVED FROM THE SHARED READ LAYER AND RE-VERIFIED ONCHAIN BY <b>s_amountMintPerCollection(wallet, collection)</b> WHEN YOU SIGN.</p>}
     </>}
   </div>;
 }
 
-function CommunityDirectory({ communities, balanceFor, walletMintedFor, connected }: { communities: Community[]; balanceFor:(id:number)=>bigint; walletMintedFor:(id:number)=>bigint; connected:boolean }) {
+function CommunityDirectory({ communities, balanceFor, walletMintedFor, checkedFor, connected }: { communities: Community[]; balanceFor:(id:number)=>bigint; walletMintedFor:(id:number)=>bigint; checkedFor:(id:number)=>boolean; connected:boolean }) {
   return <Panel className="mt-4 p-5 md:p-7">
     <div className="flex flex-col justify-between gap-3 md:flex-row md:items-end"><div><Kicker>invited nft communities</Kicker><h2 className="font-display text-4xl uppercase md:text-5xl">PRE-MINT ACCESS</h2></div><div className="text-[9px] uppercase tracking-[.15em] text-zinc-600">{connected?'WALLET CHECK + MINT COUNTERS ACTIVE':'CONNECT TO CHECK ELIGIBILITY'}</div></div>
     <div className="community-mint-grid mt-5">{communities.length ? communities.map(c => {
@@ -240,11 +173,12 @@ function CommunityDirectory({ communities, balanceFor, walletMintedFor, connecte
       const used = Number(walletMintedFor(c.id));
       const userLeft = Math.max(0,c.maxPerWallet-used);
       const holder = bal > 0n;
+      const checked = checkedFor(c.id);
       return <div key={c.id} className={`community-mint-card ${c.allowed?'active':'inactive'}`}>
         <div className="flex items-start justify-between gap-3"><div><span className="community-id">#{String(c.id).padStart(2,'0')}</span><strong>{c.name}</strong><small>{short(c.collectionAddress)}</small></div><b className={c.allowed?'text-emerald-400':'text-zinc-600'}>{c.allowed?'ACTIVE':'NOT OPEN'}</b></div>
         <div className="bar mt-4"><i style={{width:`${pct(c.amountMinted,c.maxTotalAmountAllowed)}%`}}/></div>
         <div className="community-stats"><span>MINTED <b>{c.amountMinted}/{c.maxTotalAmountAllowed}</b></span><span>REMAIN <b>{left}</b></span><span>WALLET CAP <b>{c.maxPerWallet}</b></span><span>YOU <b>{connected ? `${used}/${c.maxPerWallet}` : '—'}</b></span></div>
-        {connected && <div className={`community-eligibility ${holder && userLeft>0?'yes':'no'}`}>{!holder ? 'NO INVITED NFT DETECTED' : userLeft > 0 ? `ELIGIBLE · ${userLeft} MINT${userLeft===1?'':'S'} LEFT · INVITED NFT × ${bal}` : `COMMUNITY MINT LIMIT USED · ${used}/${c.maxPerWallet}`}</div>}
+        {connected && <div className={`community-eligibility ${checked && holder && userLeft>0?'yes':'no'}`}>{!c.allowed ? 'NOT OPEN · HOLDER CHECK RUNS WHEN ACTIVE' : !checked ? 'CHECKING ACTIVE COMMUNITY ACCESS…' : !holder ? 'NO INVITED NFT DETECTED' : userLeft > 0 ? `ELIGIBLE · ${userLeft} MINT${userLeft===1?'':'S'} LEFT · INVITED NFT × ${bal}` : `COMMUNITY MINT LIMIT USED · ${used}/${c.maxPerWallet}`}</div>}
       </div>;
     }) : <div className="eligibility-message">NO INVITED NFT COMMUNITIES HAVE BEEN REGISTERED YET.</div>}</div>
     <p className="mt-4 text-[9px] uppercase leading-5 tracking-[.08em] text-zinc-600">Holder status and wallet mint usage are displayed before signing. GameEngine independently re-verifies holder ownership and enforces the same per-wallet counter inside preMint().</p>

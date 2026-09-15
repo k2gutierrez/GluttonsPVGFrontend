@@ -1,0 +1,5 @@
+import { NextResponse } from 'next/server';
+import { getConsistentToken } from '@/server/read-service';
+import { deriveStatus } from '@/lib/read-model';
+export const runtime='nodejs'; export const dynamic='force-dynamic';
+export async function GET(_:Request,{params}:{params:Promise<{id:string}>}){try{const {id}=await params;const n=Number(id);if(!Number.isSafeInteger(n)||n<=0)return NextResponse.json({error:'BAD_TOKEN_ID'},{status:400});const snap=await getConsistentToken(n);if(!snap)return NextResponse.json({error:'INDEXER_BOOTSTRAPPING'},{status:503,headers:{'Cache-Control':'no-store'}});if(snap.outOfRange)return NextResponse.json({error:'TOKEN_OUT_OF_RANGE'},{status:404});if(!snap.token)return NextResponse.json({error:'TOKEN_NOT_INDEXED'},{status:404});return NextResponse.json({protocol:snap.protocol,token:snap.token,status:deriveStatus(snap.token,snap.protocol),indexedAt:snap.protocol.indexedAt},{headers:{'Cache-Control':'public, s-maxage=2, stale-while-revalidate=15'}});}catch(e:any){return NextResponse.json({error:e?.message||'READ_SERVICE_UNAVAILABLE'},{status:503,headers:{'Cache-Control':'no-store'}});}}

@@ -13,7 +13,9 @@ export function useProtocolStage(): SiteStage {
   // rendering PRE-MINT/MINT on an already-live deployment.
   if (!p.stageResolved) return 'syncing';
 
-  if (p.liveLocked || p.gameStart > 0n || (p.maxSupply > 0n && p.totalMinted >= p.maxSupply)) return 'live';
+  // LIVE is authoritative only after GameEngine.s_gameStart has been observed.
+  // Sold-out supply is not used as a guessed phase transition.
+  if (p.liveLocked || p.gameStart > 0n) return 'live';
 
   if (SITE.mode === 'mint') return 'mint';
   if (SITE.mode === 'auto') {

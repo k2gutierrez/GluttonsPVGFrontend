@@ -27,7 +27,7 @@ export async function metadataImage(tokenUri: string, visualState: number): Prom
       if (!resolved) throw new Error('empty token uri');
       // Some deployments may point tokenURI directly to an image.
       if (/\.(png|jpe?g|gif|webp|svg)(\?.*)?$/i.test(resolved)) return resolved;
-      const r = await fetch(resolved, { cache: 'no-store' });
+      const r = await fetch(resolved, { cache: 'force-cache' });
       if (!r.ok) throw new Error(`metadata ${r.status}`);
       meta = await r.json();
     }
