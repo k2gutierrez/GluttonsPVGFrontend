@@ -1,4 +1,5 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
+dotenv.config({ path: '.env.local' }); // dev; container env already set in production
 import { createPublicClient, decodeEventLog, decodeFunctionData, fallback, getAddress, http, parseAbiItem, type Address } from 'viem';
 import { Redis } from '@upstash/redis';
 import { ACTIVE_CHAIN, CONTRACTS, GAME_ENGINE_ABI, GLUTTON_NFT_ABI, INSPECTOR_ABI, PRIZE_VAULT_ABI, ERC20_ABI, ZERO_ADDRESS } from '../src/lib/constants';
@@ -12,7 +13,7 @@ const redis=new Redis({url:process.env.UPSTASH_REDIS_REST_URL!,token:process.env
 const transports=rpcUrls.map(u=>http(u,{timeout:15_000,retryCount:0}));
 const client=createPublicClient({chain:ACTIVE_CHAIN,transport:transports.length>1?fallback(transports,{rank:false}):transports[0]});
 const NS=`gluttons:${ACTIVE_CHAIN.id}:${CONTRACTS.gameEngine.toLowerCase()}`;
-const K={protocol:`${NS}:protocol`,tokens:`${NS}:tokens`,wallet:(a:string)=>`${NS}:wallet:${a.toLowerCase()}`,lastBlock:`${NS}:lastBlock`,lastHash:`${NS}:lastHash`,initialized:`${NS}:initialized`,communities:`${NS}:communities`,stadium:`${NS}:stadium`,endgame:`${NS}:endgame`,settlementBase:`${NS}:settlement:base`,winnerShares:`${NS}:settlement:winners`,claimedShares:`${NS}:settlement:claimed`,tokenStateBlock:`${NS}:tokenStateBlock`,communityVersion:`${NS}:communityVersion`,touchQueue:`${NS}:touch-queue`,lock:`${NS}:indexer-lock`};
+const K={protocol:`${NS}:protocol`,tokens:`${NS}:tokens`,wallet:(a:string)=>`${NS}:wallet:${a.toLowerCase()}`,lastBlock:`${NS}:lastBlock`,lastHash:`${NS}:lastHash`,initialized:`${NS}:initialized`,communities:`${NS}:communities`,stadium:`${NS}:stadium`,endgame:`${NS}:endgame`,settlementBase:`${NS}:settlement:base`,winnerShares:`${NS}:settlement:winners`,claimedShares:`${NS}:settlement:claimed`,tokenStateBlock:`${NS}:tokenStateBlock`,communityVersion:`${NS}:communityVersion`,touchQueue:`${NS}:touchQueue`,lock:`${NS}:indexer-lock`};
 const TRANSFER=parseAbiItem('event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)');
 const PRIZE_RELEASED=parseAbiItem('event PrizeReleased(address indexed winner, uint256 ethAmount, uint256 wethAmount, uint256 sharesClaimed)');
 const GAME_EVENTS=[
@@ -23,6 +24,10 @@ const GAME_EVENTS=[
  parseAbiItem('event CorpsePowered(uint256 indexed tokenId, uint64 poweredUntil)'),
  parseAbiItem('event CorpseConsumed(uint256 indexed eaterId, uint256 indexed corpseId, bool rotten)'),
  parseAbiItem('event LiveDevoured(uint256 indexed eaterId, uint256 indexed preyId)'),
+ parseAbiItem('event Fed(uint256 indexed tokenId, address indexed feeder, uint64 newExpiry)'),
+ parseAbiItem('event FastEntered(uint256 indexed tokenId, address indexed faster)'),
+ parseAbiItem('event TruceVoted(uint256 indexed tokenId, address indexed voter, uint256 epoch)'),
+ parseAbiItem('event GameSettled(address indexed winner, uint256 winnerTokenId)'),
 ] as const;
 const BATCH=Math.max(10,Math.min(100,Number(process.env.INDEXER_BATCH_SIZE||50)));
 const LOOP=Math.max(1500,Number(process.env.INDEXER_INTERVAL_MS||4000));
@@ -97,6 +102,8 @@ function addEventImpacts(log:any,impacted:Set<number>){
   case'Poisoned':case'FinalBiteTriggered':if(Number(a.attackerId)>0)impacted.add(Number(a.attackerId));if(Number(a.targetId)>0)impacted.add(Number(a.targetId));break;
   case'CorpseConsumed':if(Number(a.eaterId)>0)impacted.add(Number(a.eaterId));if(Number(a.corpseId)>0)impacted.add(Number(a.corpseId));break;
   case'LiveDevoured':if(Number(a.eaterId)>0)impacted.add(Number(a.eaterId));if(Number(a.preyId)>0)impacted.add(Number(a.preyId));break;
+  case'Fed':case'FastEntered':case'TruceVoted':if(Number(a.tokenId)>0)impacted.add(Number(a.tokenId));break;
+  case'GameSettled':if(Number(a.winnerTokenId)>0)impacted.add(Number(a.winnerTokenId));break;
  }}catch{}
 }
 async function publishDerivedViews(blockNumber:number,p:ProtocolSnapshot){
@@ -143,9 +150,10 @@ async function processRange(from:bigint,to:bigint){
  ]);
  for(const l of transfers)impacted.add(Number(l.args.tokenId));
  for(const l of gameLogs)addEventImpacts(l,impacted);
- // Feed/Fast/Truce do not emit dedicated events in the current deployed contract. One shared
- // indexer scans GameEngine-bound transactions; browsers never perform this work. Event logs
- // above also catch mutations invoked through smart accounts where tx.to is not GameEngine.
+ // The current deployment emits dedicated events (Fed/FastEntered/TruceVoted/
+ // GameSettled) for every mutation. The GameEngine-bound transaction scan below
+ // stays as a compatibility fallback for smart-account calls where tx.to is not
+ // the GameEngine; browsers never perform this work.
  for(let b=from;b<=to;b++){const block=await rpc('block transactions',()=>client.getBlock({blockNumber:b,includeTransactions:true}));for(const tx of block.transactions){if(typeof tx==='string')continue;if(tx.to?.toLowerCase()===CONTRACTS.gameEngine.toLowerCase())idsFromGameTx(tx.input).forEach(id=>impacted.add(id));}}
  const p=await protocol(to),previous=await redis.get<ProtocolSnapshot>(K.protocol);const oldMinted=Number(BigInt(previous?.totalMinted||'0')),newMinted=Number(BigInt(p.totalMinted));for(let id=oldMinted+1;id<=newMinted;id++)impacted.add(id);
  const changedIds=impacted.size?await hydrate([...impacted],Number(to)):[];p.tokenStateBlock=Number((await redis.get<string>(K.tokenStateBlock))||previous?.tokenStateBlock||0);
