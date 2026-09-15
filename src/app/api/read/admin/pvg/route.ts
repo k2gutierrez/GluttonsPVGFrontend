@@ -15,7 +15,7 @@ export async function GET(req:Request){
   try{
     try{await protectRpcRoute(req,'admin-pvg',{perIp:60,global:1000,windowSec:60})}catch(e:any){if(e?.status===429)return tooMany();throw e;}
     const base={address:CONTRACTS.pvgTreasury,abi:PVG_TREASURY_ABI} as const;
-    const rows=await rpcExecute('admin pvg snapshot',()=>serverClient.multicall({allowFailure:true,deployless:true,batchSize:0,contracts:[
+    const rows=await rpcExecute('admin pvg snapshot',()=>serverClient.multicall({allowFailure:true,deployless:false,batchSize:0,contracts:[
       {...base,functionName:'owner'},
       {...base,functionName:'getImmutables'},
       {...base,functionName:'getEthBalance'},

@@ -45,7 +45,7 @@ let rateStrikes=0,rateBlockedUntil=0;
 function isRetryable(e:unknown){const s=String((e as any)?.shortMessage||'')+' '+String((e as any)?.message||'')+' '+String((e as any)?.name||'');return /\b429\b|too many requests|rate.?limit|timeout|timed out|502|503|504|network|fetch failed|socket/i.test(s);}
 function is429(e:unknown){const s=String((e as any)?.shortMessage||'')+' '+String((e as any)?.message||'');return /\b429\b|too many requests|rate.?limit/i.test(s);}
 async function rpc<T>(label:string,fn:()=>Promise<T>,attempts=5):Promise<T>{let last:unknown;for(let i=0;i<attempts;i++){const wait=Math.max(0,rateBlockedUntil-Date.now());if(wait)await sleep(wait+Math.floor(Math.random()*350));try{const v=await fn();rateStrikes=Math.max(0,rateStrikes-1);return v;}catch(e){last=e;if(is429(e)){rateStrikes=Math.min(7,rateStrikes+1);rateBlockedUntil=Date.now()+Math.min(60_000,1500*2**rateStrikes)+Math.floor(Math.random()*750);}if(!isRetryable(e)||i===attempts-1)throw e;await sleep(500*2**i+Math.floor(Math.random()*350));}}throw last instanceof Error?last:new Error(`${label} failed`);}
-async function multi(contracts:any[],blockNumber:bigint,allowFailure=true){return rpc('multicall',()=>client.multicall({allowFailure,deployless:true,batchSize:0,blockNumber,contracts:contracts as any}));}
+async function multi(contracts:any[],blockNumber:bigint,allowFailure=true){return rpc('multicall',()=>client.multicall({allowFailure,deployless:false,batchSize:0,blockNumber,contracts:contracts as any}));}
 function phaseName(c:number){return['PRE_GAME','FEAST','PLAGUE','LS_WARNING','LAST_SUPPER','SETTLED'][c]||'UNKNOWN';}
 function supplyOf(p:ProtocolSnapshot){return Number(BigInt(p.startingPopulation||'0')||BigInt(p.totalMinted||'0'));}
 
@@ -73,7 +73,7 @@ async function hydrate(ids:number[],blockNumber:number){
    {address:CONTRACTS.gameEngine,abi:GAME_ENGINE_ABI,functionName:'s_truceVotes',args:[BigInt(id)]},
   ]);
   const [rows,oldRows]=await Promise.all([multi(stateCalls,bn,true),(async()=>{const q=redis.pipeline();part.forEach(id=>q.hget(K.tokens,String(id)));return q.exec<TokenSnapshot[]>();})()]);
-  const candidates=new Map<number,TokenSnapshot>();const maybeBurned:number[]=[];
+ const candidates=new Map<number,TokenSnapshot>();const maybeBurned:number[]=[];
   for(let i=0;i<part.length;i++){
    const id=part[i],old=oldRows[i]||undefined;const view:any=result(rows[i*3]),stRaw=result(rows[i*3+1]),voteRaw=result(rows[i*3+2]);const st=tuple(stRaw),vote=tuple(voteRaw);
    if(view&&stRaw!==undefined&&voteRaw!==undefined){candidates.set(id,{id,owner:getAddress(String(view.owner??view[0])) as Address,burned:false,visualState:Number(view.visualState??view[1]??1),expiry:Number(view.expiry??view[2]??0),poisonProtectedUntil:Number(st[1]||0),finalBiteDeadline:Number(st[2]||0),deadAt:Number(st[3]||0),spoilCheckpoint:Number(st[4]||0),poweredUntil:Number(st[5]||0),spoilQ4:Number(st[6]||0),fasting:Boolean(st[7]),deathSettled:Boolean(st[8]),voteEpoch:String(vote[0]||0),voteOwner:String(vote[1]||ZERO_ADDRESS) as Address,updatedBlock:old?.updatedBlock||blockNumber,tokenUri:old?.tokenUri});}
@@ -81,7 +81,7 @@ async function hydrate(ids:number[],blockNumber:number){
   }
   if(maybeBurned.length){const ownerRows=await multi(maybeBurned.map(id=>({address:CONTRACTS.gluttonNFT,abi:GLUTTON_NFT_ABI,functionName:'ownerOf',args:[BigInt(id)]})),bn,true);for(let i=0;i<maybeBurned.length;i++){const id=maybeBurned[i],idx=part.indexOf(id),old=oldRows[idx]||undefined;if((ownerRows[i] as any)?.status==='failure'){candidates.set(id,{id,burned:true,visualState:-1,expiry:old?.expiry||0,poisonProtectedUntil:0,finalBiteDeadline:0,deadAt:old?.deadAt||0,spoilCheckpoint:old?.spoilCheckpoint||0,poweredUntil:0,spoilQ4:old?.spoilQ4||0,fasting:false,deathSettled:true,voteEpoch:'0',updatedBlock:old?.updatedBlock||blockNumber,tokenUri:undefined});}}
   }
-  const needUri:number[]=[];for(const [id,t] of candidates){if(t.burned)continue;const old=oldRows[part.indexOf(id)]||undefined;if(!old?.tokenUri||old.visualState!==t.visualState)needUri.push(id);}
+ const needUri:number[]=[];for(const [id,t] of candidates){if(t.burned)continue;const old=oldRows[part.indexOf(id)]||undefined;if(!old?.tokenUri||old.visualState!==t.visualState)needUri.push(id);}
   if(needUri.length){const uriRows=await multi(needUri.map(id=>({address:CONTRACTS.gluttonNFT,abi:GLUTTON_NFT_ABI,functionName:'tokenURI',args:[BigInt(id)]})),bn,true);for(let i=0;i<needUri.length;i++){const u=result(uriRows[i]);if(u!==undefined)candidates.get(needUri[i])!.tokenUri=String(u);}}
   const writes=redis.pipeline();let writesCount=0;
   for(const [id,next0] of candidates){const old=oldRows[part.indexOf(id)]||undefined;const coreChanged=!sameCore(old,next0);const uriChanged=(old?.tokenUri||'')!==(next0.tokenUri||'');if(!coreChanged&&!uriChanged)continue;const next={...next0,updatedBlock:coreChanged?blockNumber:(old?.updatedBlock||blockNumber)};writes.hset(K.tokens,{[String(id)]:next});writesCount++;changed.add(id);if(old?.owner&&old.owner.toLowerCase()!==next.owner?.toLowerCase())writes.srem(K.wallet(old.owner),String(id));if(next.owner&&!next.burned)writes.sadd(K.wallet(next.owner),String(id));}

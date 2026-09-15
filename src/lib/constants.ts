@@ -37,6 +37,9 @@ export const curtis = defineChain({
   rpcUrls: { default: { http: CURTIS_RPC_URLS } },
   blockExplorers: { default: { name: 'Curtis ApeScan', url: 'https://curtis.apescan.io' } },
   testnet: true,
+  contracts: {
+    multicall3: { address: '0xcA11bde05977b3631167028862bE2a173976CA11' },
+  },
 });
 
 export const ethereumMainnet = defineChain({
@@ -45,6 +48,9 @@ export const ethereumMainnet = defineChain({
   nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
   rpcUrls: { default: { http: ETHEREUM_RPC_URLS } },
   blockExplorers: { default: { name: 'Etherscan', url: 'https://etherscan.io' } },
+  contracts: {
+    multicall3: { address: '0xcA11bde05977b3631167028862bE2a173976CA11' },
+  },
 });
 
 export const CHAIN_MODE = (process.env.NEXT_PUBLIC_CHAIN_MODE || 'curtis').toLowerCase();
