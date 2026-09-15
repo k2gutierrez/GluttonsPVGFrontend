@@ -804,6 +804,16 @@ export const GameEngineABI = [
         "type": "constructor",
         "inputs": [
             {
+                "name": "gameHour_",
+                "type": "uint64",
+                "internalType": "uint64"
+            },
+            {
+                "name": "maxSupply_",
+                "type": "uint256",
+                "internalType": "uint256"
+            },
+            {
                 "name": "startBackstop_",
                 "type": "uint64",
                 "internalType": "uint64"
@@ -1952,6 +1962,50 @@ export const GameEngineABI = [
     },
     {
         "type": "event",
+        "name": "FastEntered",
+        "inputs": [
+            {
+                "name": "tokenId",
+                "type": "uint256",
+                "indexed": true,
+                "internalType": "uint256"
+            },
+            {
+                "name": "faster",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+            }
+        ],
+        "anonymous": false
+    },
+    {
+        "type": "event",
+        "name": "Fed",
+        "inputs": [
+            {
+                "name": "tokenId",
+                "type": "uint256",
+                "indexed": true,
+                "internalType": "uint256"
+            },
+            {
+                "name": "feeder",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+            },
+            {
+                "name": "newExpiry",
+                "type": "uint64",
+                "indexed": false,
+                "internalType": "uint64"
+            }
+        ],
+        "anonymous": false
+    },
+    {
+        "type": "event",
         "name": "FinalBiteTriggered",
         "inputs": [
             {
@@ -1971,6 +2025,25 @@ export const GameEngineABI = [
                 "type": "uint64",
                 "indexed": false,
                 "internalType": "uint64"
+            }
+        ],
+        "anonymous": false
+    },
+    {
+        "type": "event",
+        "name": "GameSettled",
+        "inputs": [
+            {
+                "name": "winner",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+            },
+            {
+                "name": "winnerTokenId",
+                "type": "uint256",
+                "indexed": false,
+                "internalType": "uint256"
             }
         ],
         "anonymous": false
@@ -2109,6 +2182,31 @@ export const GameEngineABI = [
                 "type": "uint64",
                 "indexed": false,
                 "internalType": "uint64"
+            }
+        ],
+        "anonymous": false
+    },
+    {
+        "type": "event",
+        "name": "TruceVoted",
+        "inputs": [
+            {
+                "name": "tokenId",
+                "type": "uint256",
+                "indexed": true,
+                "internalType": "uint256"
+            },
+            {
+                "name": "voter",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+            },
+            {
+                "name": "epoch",
+                "type": "uint256",
+                "indexed": false,
+                "internalType": "uint256"
             }
         ],
         "anonymous": false
