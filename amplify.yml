@@ -1,0 +1,22 @@
+version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - npm ci
+    build:
+      commands:
+        # Amplify does NOT expose console env vars to the Next.js SSR runtime by
+        # default. Write them into .env.production before building (official AWS
+        # pattern). NEXT_PUBLIC_* are inlined at build; the rest are read by the
+        # /api/read/* server routes and the worker at runtime.
+        - env | grep -e UPSTASH_REDIS_REST_URL -e UPSTASH_REDIS_REST_TOKEN -e RPC_URL -e RPC_FALLBACK_URL -e DEPLOYMENT_BLOCK -e APP_ORIGIN -e NEXT_PUBLIC_ >> .env.production
+        - npm run build
+  artifacts:
+    baseDirectory: .next
+    files:
+      - '**/*'
+  cache:
+    paths:
+      - node_modules/**/*
+      - .next/cache/**/*
