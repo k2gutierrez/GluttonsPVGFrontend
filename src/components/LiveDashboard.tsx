@@ -28,7 +28,7 @@ export function LiveDashboard() {
   const S = Number(p.startingPopulation || p.totalMinted);
   const alive = Number(p.aliveCount);
   const meal = Number(p.currentMealSeconds) / gameHourSeconds;
-  const bars = Number(p.completedBars);
+  const bars = Number(p.completedBars);const feeds = Number(p.totalNormalFeeds);const feedsInBar = S > 0 ? feeds % S : 0;
   const potNative = BigInt((p as any).potNative || 0n);
   const potWeth = BigInt((p as any).potWeth || 0n);
   const totalPotWei = potNative + potWeth;
@@ -62,7 +62,7 @@ export function LiveDashboard() {
       <Metric title="ALIVE" value={`${alive.toLocaleString()} / ${S || minted}`} bar={pct(alive, S || minted)}/>
       <Metric title={p.isSettled?'VAULT REMAINING':'THE POT'} value={`${potValue} ${NATIVE_SYMBOL}`} sub={p.isSettled?'FINAL SNAPSHOT / CLAIM DETAILS ARE LOCKED IN FINAL TABLE':`${NATIVE_SYMBOL} + WETH IN PRIZE VAULT`} pulse={!p.isSettled}/>
       <Metric title="CURRENT MEAL" value={p.isSettled?'CLOSED':`+${meal.toFixed(2)}H`} bar={p.isSettled?undefined:pct(meal, 24)}/>
-      <Metric title="METABOLISM" value={`BAR ${bars}`} sub={`${p.totalNormalFeeds.toLocaleString()} VALID FEEDS`}/>
+      <Metric title="METABOLISM" value={`BAR ${bars}`} sub={`${feedsInBar.toLocaleString()} / ${S} FEEDS TO NEXT BAR`} bar={pct(feedsInBar, S)}/>
       <Metric title="NEXT" value={next} small/>
     </div>
     <div className="mt-4 grid gap-4 lg:grid-cols-[1.45fr_.55fr]">
@@ -71,7 +71,7 @@ export function LiveDashboard() {
         <div className="machine-bars">
           <StateBar label="SURVIVORS" value={`${alive}`} right={`${pct(alive, S || minted).toFixed(1)}%`} width={pct(alive, S || minted)}/>
           <StateBar label="FOOD STRENGTH" value={p.isSettled?'CLOSED':`+${meal.toFixed(2)}H`} right="GLOBAL" width={p.isSettled?0:pct(meal, 24)}/>
-          <StateBar label="METABOLISM" value={`BAR ${bars}`} right={`${p.totalNormalFeeds.toLocaleString()} FEEDS`} width={pct(bars, 123)}/>
+          <StateBar label="METABOLISM" value={`BAR ${bars}`} right={`${feedsInBar}/${S} FEEDS`} width={pct(feedsInBar, S)}/>
         </div>
         <div className="next-threshold"><span>NEXT SYSTEM RESPONSE</span><strong>{next}</strong><small>Phase and thresholds are read from GameEngine. The interface does not infer a friendlier state when the chain is unavailable.</small></div>
       </Panel>
