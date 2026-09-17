@@ -21,6 +21,8 @@ export const K={
  tokenStateBlock:`${NS}:tokenStateBlock`,
  communityVersion:`${NS}:communityVersion`,
  touchQueue:`${NS}:touchQueue`,
+ poisons:`${NS}:lb:poisons`,
+ feeds:`${NS}:lb:feeds`,
  rpcCache:(name:string)=>`${NS}:rpc-cache:${name}`,
  rate:(scope:string,key:string)=>`${NS}:rate:${scope}:${key}`,
 };
