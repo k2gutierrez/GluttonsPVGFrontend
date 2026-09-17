@@ -249,7 +249,7 @@ a,p,span,strong,small,b,time{overflow-wrap:anywhere}
 .metric-card.pot-priority{border-color:rgba(255,75,31,.4);background:linear-gradient(180deg,rgba(255,75,31,.09),rgba(11,13,11,.97))}
 .metric-card.pot-priority>strong{font-size:42px;line-height:1;color:#ffd8c8}
 @media (max-width:1023px){.metric-card.pot-priority>strong{font-size:34px}}
-.live-hero{display:grid;grid-template-columns:minmax(220px,300px) minmax(0,1fr);align-items:end;gap:26px;margin-bottom:18px}
+.live-hero{display:grid;grid-template-columns:minmax(240px,340px) minmax(0,1fr);align-items:end;gap:clamp(44px,5vw,88px);margin-bottom:22px}
 .hero-kpis{grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}
 .hero-kpis .metric-card{padding:13px;min-height:118px}
 .hero-kpis .metric-card>strong{font-size:26px;margin:12px 0 8px}
