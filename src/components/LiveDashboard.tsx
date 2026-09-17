@@ -55,7 +55,7 @@ export function LiveDashboard() {
     <div className="ambient-word ambient-a"><WeightWord word={phase==='LAST_SUPPER'?'EAT':phase==='SETTLED'?'CLOSED':'HUNGER'}/></div>
     <section className="live-hero" data-reveal>
       <div><Kicker>live protocol / public stadium</Kicker><MorphTicker/><span className="phase-eyebrow">{copy.eyebrow}</span><h1 className="live-title idle-glitch" data-text={phase}><Scramble loop>{phase}</Scramble></h1><p>{copy.line} <b>{phase==='SETTLED'?'': 'THE POT KEEPS GROWING.'}</b></p></div>
-      <div className="chain-heartbeat"><i/><span>INDEXED BLOCK</span><strong>{p.indexedBlock ? p.indexedBlock.toLocaleString() : 'SYNCING'}</strong><small>{p.indexedAt ? `INDEX ${Math.max(0,Math.floor((Date.now()-p.indexedAt)/1000))}s AGO` : 'AWAITING STATE'}</small></div>
+      <Panel className="hero-access p-5 md:p-6"><Kicker>protocol access</Kicker><div className="live-links"><Link href="/my-gluttons"><span>01</span><b>MY GLUTTONS</b><small>{p.isSettled?'Winning shares / final inventory.':'Protect positions. Manage food.'}</small></Link><Link href="/leaderboard"><span>02</span><b>{p.isSettled?'FINAL TABLE':'LEADERBOARD'}</b><small>Public clocks, states and final positions.</small></Link><Link href="/rules"><span>03</span><b>RULES</b><small>Read the machine.</small></Link></div></Panel>
     </section>
     <div className="state-grid">
       <Metric title="MINTED" value={maxSupply ? `${minted.toLocaleString()} / ${maxSupply.toLocaleString()}` : 'SYNCING'} bar={maxSupply?pct(minted, maxSupply):undefined}/>
@@ -65,24 +65,23 @@ export function LiveDashboard() {
       <Metric title="METABOLISM" value={`BAR ${bars}`} sub={`${feedsInBar.toLocaleString()} / ${S} FEEDS TO NEXT BAR`} bar={pct(feedsInBar, S)}/>
       <Metric title="NEXT" value={next} small/>
     </div>
-    <div className="mt-4 grid gap-4 lg:grid-cols-[1.45fr_.55fr]">
-      <Panel className="p-5 md:p-7">
-        <Kicker>the machine / current state</Kicker>
-        <div className="machine-bars">
-          <StateBar label="SURVIVORS" value={`${alive}`} right={`${pct(alive, S || minted).toFixed(1)}%`} width={pct(alive, S || minted)}/>
-          <StateBar label="FOOD STRENGTH" value={p.isSettled?'CLOSED':`+${meal.toFixed(2)}H`} right="GLOBAL" width={p.isSettled?0:pct(meal, 24)}/>
-          <StateBar label="METABOLISM" value={`BAR ${bars}`} right={`${feedsInBar}/${S} FEEDS`} width={pct(feedsInBar, S)}/>
-        </div>
-        <div className="next-threshold"><span>NEXT SYSTEM RESPONSE</span><strong>{next}</strong><small>Phase and thresholds are read from GameEngine. The interface does not infer a friendlier state when the chain is unavailable.</small></div>
-      </Panel>
-      <Panel className="p-5 md:p-7">
-        <Kicker>protocol access</Kicker>
-        <div className="live-links"><Link href="/my-gluttons"><span>01</span><b>MY GLUTTONS</b><small>{p.isSettled?'Check winning shares / final inventory.':'Protect positions. Manage food.'}</small></Link><Link href="/leaderboard"><span>02</span><b>{p.isSettled?'FINAL TABLE':'LEADERBOARD'}</b><small>Public clocks, states and final positions.</small></Link><Link href="/rules"><span>03</span><b>RULES</b><small>Read the machine.</small></Link></div>
-        {!p.isSettled && <div className="mt-5"><TxButton label="FLUSH WETH → POT" address={CONTRACTS.royaltyTreasury} abi={ROYALTY_TREASURY_ABI} functionName="flushWETH" className="w-full secondary-action"/></div>}
-        {p.isSettled && <p className="settled-routing-note">ACTIVE POT CLOSED. POST-SETTLEMENT ROYALTIES ROUTE TO FUTURE REWARDS + PVG, NOT BACK INTO THIS GAME.</p>}
-      </Panel>
+    <div className="mt-4 grid gap-4 lg:grid-cols-[1.62fr_.58fr]">
+      <div className="space-y-4">{!p.isSettled ? <LiveMatrix/> : <Panel className="final-archive-note"><Kicker>final archive</Kicker><b>SURVIVAL CLOCKS ARE CLOSED.</b><span>The settlement panel above is the canonical final result. The live Matrix no longer advances after the game is closed, preventing post-settlement clock aging from rewriting the story.</span><Link href="/leaderboard" className="ghost-btn">OPEN FINAL TABLE →</Link></Panel>}</div>
+      <div className="space-y-4">
+        <Panel className="p-5 md:p-6">
+          <Kicker>the machine / current state</Kicker>
+          <div className="machine-bars">
+            <StateBar label="SURVIVORS" value={`${alive}`} right={`${pct(alive, S || minted).toFixed(1)}%`} width={pct(alive, S || minted)}/>
+            <StateBar label="FOOD STRENGTH" value={p.isSettled?'CLOSED':`+${meal.toFixed(2)}H`} right="GLOBAL" width={p.isSettled?0:pct(meal, 24)}/>
+            <StateBar label="METABOLISM" value={`BAR ${bars}`} right={`${feedsInBar}/${S} FEEDS`} width={pct(feedsInBar, S)}/>
+          </div>
+          <div className="next-threshold"><span>NEXT SYSTEM RESPONSE</span><strong>{next}</strong><small>Phase and thresholds are read from GameEngine. The interface does not infer a friendlier state when the chain is unavailable.</small></div>
+          <div className="chain-heartbeat machine-sync"><i/><span>INDEXED BLOCK</span><strong>{p.indexedBlock ? p.indexedBlock.toLocaleString() : 'SYNCING'}</strong><small>{p.indexedAt ? `INDEX ${Math.max(0,Math.floor((Date.now()-p.indexedAt)/1000))}s AGO` : 'AWAITING STATE'}</small></div>
+        </Panel>
+        {!p.isSettled && <Panel className="p-5 md:p-6"><Kicker>pot routing</Kicker><TxButton label="FLUSH WETH → POT" address={CONTRACTS.royaltyTreasury} abi={ROYALTY_TREASURY_ABI} functionName="flushWETH" className="w-full secondary-action"/></Panel>}
+        {p.isSettled && <Panel className="p-5 md:p-6"><p className="settled-routing-note">ACTIVE POT CLOSED. POST-SETTLEMENT ROYALTIES ROUTE TO FUTURE REWARDS + PVG, NOT BACK INTO THIS GAME.</p></Panel>}
+      </div>
     </div>
-    {!p.isSettled ? <div className="mt-4 space-y-4"><LiveMatrix/></div> : <Panel className="mt-4 final-archive-note"><Kicker>final archive</Kicker><b>SURVIVAL CLOCKS ARE CLOSED.</b><span>The settlement panel above is the canonical final result. The live Matrix no longer advances after the game is closed, preventing post-settlement clock aging from rewriting the story.</span><Link href="/leaderboard" className="ghost-btn">OPEN FINAL TABLE →</Link></Panel>}
     <div className="retro-marquee" aria-hidden="true"><div>ALIVE::{alive} // POT::{potValue} // MEAL::{p.isSettled?'CLOSED':`${meal.toFixed(2)}H`} // BAR::{bars} // PHASE::{phase} // BLOCK::{p.indexedBlock?.toString() || '...'} //</div></div>
   </main></>;
 }
