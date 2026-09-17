@@ -246,3 +246,6 @@ a,p,span,strong,small,b,time{overflow-wrap:anywhere}
 .lb-mini-row b{font-family:var(--font-display);font-size:16px;color:#eee}
 .lb-mini-row b.count{text-align:right;color:var(--hot)}
 .lb-mini-empty{padding:14px;font-size:8px;color:#666}
+.metric-card.pot-priority{border-color:rgba(255,75,31,.4);background:linear-gradient(180deg,rgba(255,75,31,.09),rgba(11,13,11,.97))}
+.metric-card.pot-priority>strong{font-size:42px;line-height:1;color:#ffd8c8}
+@media (max-width:1023px){.metric-card.pot-priority>strong{font-size:34px}}

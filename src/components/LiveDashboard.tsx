@@ -55,14 +55,14 @@ export function LiveDashboard() {
     <div className="ambient-word ambient-a"><WeightWord word={phase==='LAST_SUPPER'?'EAT':phase==='SETTLED'?'CLOSED':'HUNGER'}/></div>
     <section className="live-hero" data-reveal>
       <div><Kicker>live protocol / public stadium</Kicker><MorphTicker/><span className="phase-eyebrow">{copy.eyebrow}</span><h1 className="live-title idle-glitch" data-text={phase}><Scramble loop>{phase}</Scramble></h1><p>{copy.line} <b>{phase==='SETTLED'?'': 'THE POT KEEPS GROWING.'}</b></p></div>
-      <Panel className="hero-access p-5 md:p-6"><Kicker>protocol access</Kicker><div className="live-links"><Link href="/my-gluttons"><span>01</span><b>MY GLUTTONS</b><small>{p.isSettled?'Winning shares / final inventory.':'Protect positions. Manage food.'}</small></Link><Link href="/leaderboard"><span>02</span><b>{p.isSettled?'FINAL TABLE':'LEADERBOARD'}</b><small>Public clocks, states and final positions.</small></Link><Link href="/rules"><span>03</span><b>RULES</b><small>Read the machine.</small></Link></div></Panel>
+      
     </section>
     <div className="state-grid">
-      <Metric title="MINTED" value={maxSupply ? `${minted.toLocaleString()} / ${maxSupply.toLocaleString()}` : 'SYNCING'} bar={maxSupply?pct(minted, maxSupply):undefined}/>
+      <Metric title={p.isSettled?'VAULT REMAINING':'THE POT'} value={`${potValue} ${NATIVE_SYMBOL}`} sub={p.isSettled?'FINAL SNAPSHOT / CLAIM DETAILS ARE LOCKED IN FINAL TABLE':`${NATIVE_SYMBOL} + WETH IN PRIZE VAULT`} pulse={!p.isSettled} className="pot-priority"/>
       <Metric title="ALIVE" value={`${alive.toLocaleString()} / ${S || minted}`} bar={pct(alive, S || minted)}/>
-      <Metric title={p.isSettled?'VAULT REMAINING':'THE POT'} value={`${potValue} ${NATIVE_SYMBOL}`} sub={p.isSettled?'FINAL SNAPSHOT / CLAIM DETAILS ARE LOCKED IN FINAL TABLE':`${NATIVE_SYMBOL} + WETH IN PRIZE VAULT`} pulse={!p.isSettled}/>
       <Metric title="CURRENT MEAL" value={p.isSettled?'CLOSED':`+${meal.toFixed(2)}H`} bar={p.isSettled?undefined:pct(meal, 24)}/>
       <Metric title="METABOLISM" value={`BAR ${bars}`} sub={`${feedsInBar.toLocaleString()} / ${S} FEEDS TO NEXT BAR`} bar={pct(feedsInBar, S)}/>
+      <Metric title="MINTED" value={maxSupply ? `${minted.toLocaleString()} / ${maxSupply.toLocaleString()}` : 'SYNCING'} bar={maxSupply?pct(minted, maxSupply):undefined}/>
       <Metric title="NEXT" value={next} small/>
     </div>
     <div className="mt-4 grid gap-4 lg:grid-cols-[1.62fr_.58fr]">
@@ -85,5 +85,5 @@ export function LiveDashboard() {
     <div className="retro-marquee" aria-hidden="true"><div>ALIVE::{alive} // POT::{potValue} // MEAL::{p.isSettled?'CLOSED':`${meal.toFixed(2)}H`} // BAR::{bars} // PHASE::{phase} // BLOCK::{p.indexedBlock?.toString() || '...'} //</div></div>
   </main></>;
 }
-function Metric({ title, value, bar, small, sub, pulse }: { title: string; value: string; bar?: number; small?: boolean; sub?: string; pulse?: boolean }) { return <Panel className={`metric-card ${pulse ? 'pot-pulse' : ''}`}><span>{title}</span><strong className={small ? 'small' : ''}>{value}</strong>{sub && <small>{sub}</small>}{bar !== undefined && <div className="bar"><i style={{ width: `${bar}%` }}/></div>}</Panel>; }
+function Metric({ title, value, bar, small, sub, pulse, className = '' }: { title: string; value: string; bar?: number; small?: boolean; sub?: string; pulse?: boolean; className?: string }) { return <Panel className={`metric-card ${pulse ? 'pot-pulse' : ''} ${className}`}><span>{title}</span><strong className={small ? 'small' : ''}>{value}</strong>{sub && <small>{sub}</small>}{bar !== undefined && <div className="bar"><i style={{ width: `${bar}%` }}/></div>}</Panel>; }
 function StateBar({ label, value, right, width }: { label: string; value: string; right: string; width: number }) { return <div className="state-row"><div><span>{label}</span><strong>{value}</strong><small>{right}</small></div><div className="bar"><i style={{ width: `${width}%` }}/></div></div>; }
