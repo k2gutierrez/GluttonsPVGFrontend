@@ -56,8 +56,7 @@ export function LiveDashboard() {
     <section className="live-hero" data-reveal>
       <div><Kicker>live protocol / public stadium</Kicker><MorphTicker/><span className="phase-eyebrow">{copy.eyebrow}</span><h1 className="live-title idle-glitch" data-text={phase}><Scramble loop>{phase}</Scramble></h1><p>{copy.line} <b>{phase==='SETTLED'?'': 'THE POT KEEPS GROWING.'}</b></p></div>
       
-    </section>
-    <div className="state-grid">
+    <div className="state-grid hero-kpis">
       <Metric title={p.isSettled?'VAULT REMAINING':'THE POT'} value={`${potValue} ${NATIVE_SYMBOL}`} sub={p.isSettled?'FINAL SNAPSHOT / CLAIM DETAILS ARE LOCKED IN FINAL TABLE':`${NATIVE_SYMBOL} + WETH IN PRIZE VAULT`} pulse={!p.isSettled} className="pot-priority"/>
       <Metric title="ALIVE" value={`${alive.toLocaleString()} / ${S || minted}`} bar={pct(alive, S || minted)}/>
       <Metric title="CURRENT MEAL" value={p.isSettled?'CLOSED':`+${meal.toFixed(2)}H`} bar={p.isSettled?undefined:pct(meal, 24)}/>
@@ -65,6 +64,7 @@ export function LiveDashboard() {
       <Metric title="MINTED" value={maxSupply ? `${minted.toLocaleString()} / ${maxSupply.toLocaleString()}` : 'SYNCING'} bar={maxSupply?pct(minted, maxSupply):undefined}/>
       <Metric title="NEXT" value={next} small/>
     </div>
+    </section>
     <div className="mt-4 grid gap-4 lg:grid-cols-[1.62fr_.58fr]">
       <div className="space-y-4">{!p.isSettled ? <LiveMatrix/> : <Panel className="final-archive-note"><Kicker>final archive</Kicker><b>SURVIVAL CLOCKS ARE CLOSED.</b><span>The settlement panel above is the canonical final result. The live Matrix no longer advances after the game is closed, preventing post-settlement clock aging from rewriting the story.</span><Link href="/leaderboard" className="ghost-btn">OPEN FINAL TABLE →</Link></Panel>}</div>
       <div className="space-y-4">
