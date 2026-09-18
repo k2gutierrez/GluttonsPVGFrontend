@@ -30,7 +30,7 @@ const GAME_EVENTS=[
  parseAbiItem('event GameSettled(address indexed winner, uint256 winnerTokenId)'),
 ] as const;
 const BATCH=Math.max(10,Math.min(100,Number(process.env.INDEXER_BATCH_SIZE||50)));
-const LOOP=Math.max(1500,Number(process.env.INDEXER_INTERVAL_MS||4000));
+const LOOP=Math.max(15_000,Number(process.env.INDEXER_INTERVAL_MS||30_000)); // floor protects the Redis quota
 const RECONCILE=Math.max(60_000,Number(process.env.INDEXER_RECONCILE_MS||(ACTIVE_CHAIN.id===1?900_000:300_000)));
 const MAX_CATCHUP_BLOCKS=Math.max(50,Number(process.env.INDEXER_MAX_CATCHUP_BLOCKS||300));
 const CONFIRMATIONS=Math.max(0,Number(process.env.INDEXER_CONFIRMATIONS??(ACTIVE_CHAIN.id===1?2:0)));
@@ -190,7 +190,7 @@ async function tick(){
  if(last<safe){const gap=safe-last;if(gap>BigInt(MAX_CATCHUP_BLOCKS)){console.warn(`[catchup] ${gap} blocks behind; reconciling current state instead of replaying every block`);await fullRebuild(safe);return;}await processRange(last+1n,safe);last=safe;}
  await processTouches(safe);
  const current=await redis.get<ProtocolSnapshot>(K.protocol);const communityEvery=current&&Number(current.gameStart)>0?300_000:30_000;if(Date.now()-lastCommunities>communityEvery){await refreshCommunities();lastCommunities=Date.now();}
- if(Date.now()-lastReconcile>RECONCILE){await fullRebuild(safe);lastReconcile=Date.now();}
+ if(Date.now()-lastReconcile>RECONCILE){const stored=await redis.get<ProtocolSnapshot>(K.protocol);const fresh=await protocol(safe);const drift=!stored||stored.phaseCode!==fresh.phaseCode||stored.isSettled!==fresh.isSettled||Number(stored.aliveCount)!==Number(fresh.aliveCount)||Number(stored.totalMinted)!==Number(fresh.totalMinted)||!(await redis.get(K.stadium));if(drift)await fullRebuild(safe);lastReconcile=Date.now();}
 }
 
 async function withLeaderLock(fn:()=>Promise<void>){

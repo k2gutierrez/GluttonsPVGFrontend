@@ -8,7 +8,7 @@ import { protocolAtom } from '@/state/game';
 
 const LIVE_LOCK_KEY=`gluttons:live-locked:${ACTIVE_CHAIN.id}:${CONTRACTS.gameEngine.toLowerCase()}`;
 const POLL_LIVE=8_000, POLL_PRE=6_000;
-const READ_STALE_MS=Math.max(10_000,Number(process.env.NEXT_PUBLIC_READ_STALE_MS||45_000));
+const READ_STALE_MS=Math.max(10_000,Number(process.env.NEXT_PUBLIC_READ_STALE_MS||90_000));
 
 function apply(s:ProtocolSnapshot,prev:any,degraded:boolean){
  const gameStart=BigInt(s.gameStart); const live=gameStart>0n;
