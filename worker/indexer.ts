@@ -13,7 +13,7 @@ const redis=new Redis({url:process.env.UPSTASH_REDIS_REST_URL!,token:process.env
 const transports=rpcUrls.map(u=>http(u,{timeout:15_000,retryCount:0}));
 const client=createPublicClient({chain:ACTIVE_CHAIN,transport:transports.length>1?fallback(transports,{rank:false}):transports[0]});
 const NS=`gluttons:${ACTIVE_CHAIN.id}:${CONTRACTS.gameEngine.toLowerCase()}`;
-const K={protocol:`${NS}:protocol`,tokens:`${NS}:tokens`,wallet:(a:string)=>`${NS}:wallet:${a.toLowerCase()}`,lastBlock:`${NS}:lastBlock`,lastHash:`${NS}:lastHash`,initialized:`${NS}:initialized`,communities:`${NS}:communities`,stadium:`${NS}:stadium`,endgame:`${NS}:endgame`,settlementBase:`${NS}:settlement:base`,winnerShares:`${NS}:settlement:winners`,claimedShares:`${NS}:settlement:claimed`,tokenStateBlock:`${NS}:tokenStateBlock`,communityVersion:`${NS}:communityVersion`,touchQueue:`${NS}:touchQueue`,poisons:`${NS}:lb:poisons`,feeds:`${NS}:lb:feeds`,countersReady:`${NS}:lb:counters-ready`,lock:`${NS}:indexer-lock`};
+const K={protocol:`${NS}:protocol`,tokens:`${NS}:tokens`,wallet:(a:string)=>`${NS}:wallet:${a.toLowerCase()}`,lastBlock:`${NS}:lastBlock`,lastHash:`${NS}:lastHash`,initialized:`${NS}:initialized`,communities:`${NS}:communities`,stadium:`${NS}:stadium`,endgame:`${NS}:endgame`,settlementBase:`${NS}:settlement:base`,winnerShares:`${NS}:settlement:winners`,claimedShares:`${NS}:settlement:claimed`,tokenStateBlock:`${NS}:tokenStateBlock`,communityVersion:`${NS}:communityVersion`,touchQueue:`${NS}:touchQueue`,poisons:`${NS}:lb:poisons`,feeds:`${NS}:lb:feeds`,countersReady:`${NS}:lb:counters-ready`,wdigest:(a:string)=>`${NS}:wdigest:${a.toLowerCase()}`,stadiumRows:`${NS}:stadium:rows`,stadiumMeta:`${NS}:stadium:meta`,lock:`${NS}:indexer-lock`};
 const TRANSFER=parseAbiItem('event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)');
 const PRIZE_RELEASED=parseAbiItem('event PrizeReleased(address indexed winner, uint256 ethAmount, uint256 wethAmount, uint256 sharesClaimed)');
 const GAME_EVENTS=[
@@ -32,6 +32,7 @@ const GAME_EVENTS=[
 const BATCH=Math.max(10,Math.min(100,Number(process.env.INDEXER_BATCH_SIZE||50)));
 const LOOP=Math.max(15_000,Number(process.env.INDEXER_INTERVAL_MS||30_000)); // floor protects the Redis quota
 const RECONCILE=Math.max(60_000,Number(process.env.INDEXER_RECONCILE_MS||(ACTIVE_CHAIN.id===1?900_000:300_000)));
+const TOUCH=Math.max(2_000,Number(process.env.INDEXER_TOUCH_INTERVAL_MS||4_000));
 const MAX_CATCHUP_BLOCKS=Math.max(50,Number(process.env.INDEXER_MAX_CATCHUP_BLOCKS||300));
 const CONFIRMATIONS=Math.max(0,Number(process.env.INDEXER_CONFIRMATIONS??(ACTIVE_CHAIN.id===1?2:0)));
 const DEPLOYMENT_BLOCK=BigInt(process.env.DEPLOYMENT_BLOCK||'0');
@@ -84,12 +85,16 @@ async function hydrate(ids:number[],blockNumber:number){
  const needUri:number[]=[];for(const [id,t] of candidates){if(t.burned)continue;const old=oldRows[part.indexOf(id)]||undefined;if(!old?.tokenUri||old.visualState!==t.visualState)needUri.push(id);}
   if(needUri.length){const uriRows=await multi(needUri.map(id=>({address:CONTRACTS.gluttonNFT,abi:GLUTTON_NFT_ABI,functionName:'tokenURI',args:[BigInt(id)]})),bn,true);for(let i=0;i<needUri.length;i++){const u=result(uriRows[i]);if(u!==undefined)candidates.get(needUri[i])!.tokenUri=String(u);}}
   const writes=redis.pipeline();let writesCount=0;
-  for(const [id,next0] of candidates){const old=oldRows[part.indexOf(id)]||undefined;const coreChanged=!sameCore(old,next0);const uriChanged=(old?.tokenUri||'')!==(next0.tokenUri||'');if(!coreChanged&&!uriChanged)continue;const next={...next0,updatedBlock:coreChanged?blockNumber:(old?.updatedBlock||blockNumber)};writes.hset(K.tokens,{[String(id)]:next});writesCount++;changed.add(id);if(old?.owner&&old.owner.toLowerCase()!==next.owner?.toLowerCase())writes.srem(K.wallet(old.owner),String(id));if(next.owner&&!next.burned)writes.sadd(K.wallet(next.owner),String(id));}
+  for(const [id,next0] of candidates){const old=oldRows[part.indexOf(id)]||undefined;const coreChanged=!sameCore(old,next0);const uriChanged=(old?.tokenUri||'')!==(next0.tokenUri||'');if(!coreChanged&&!uriChanged)continue;const next={...next0,updatedBlock:coreChanged?blockNumber:(old?.updatedBlock||blockNumber)};writes.hset(K.tokens,{[String(id)]:next});writes.hset(K.stadiumRows,{[String(id)]:JSON.stringify(compactRow(next))});writesCount++;changed.add(id);if(next.owner&&!next.burned)dirtyOwners.add(String(next.owner).toLowerCase());if(old?.owner&&old.owner.toLowerCase()!==next.owner?.toLowerCase())writes.srem(K.wallet(old.owner),String(id));if(next.owner&&!next.burned)writes.sadd(K.wallet(next.owner),String(id));}
   if(writesCount)await writes.exec();await sleep(30+Math.floor(Math.random()*40));
  }
- if(changed.size)await redis.set(K.tokenStateBlock,String(blockNumber));return[...changed];
+ await flushWalletDigests();if(changed.size)await redis.set(K.tokenStateBlock,String(blockNumber));return[...changed];
 }
 
+const ROW_UNKNOWN=[-1,0,0,0,0,0,0,0,0,0,0];
+function compactRow(t:TokenSnapshot){return[t.burned?1:0,t.expiry,t.poisonProtectedUntil,t.finalBiteDeadline,t.deadAt,t.spoilCheckpoint,t.poweredUntil,t.spoilQ4,t.fasting?1:0,t.deathSettled?1:0,t.updatedBlock];}
+const dirtyOwners=new Set<string>();
+async function flushWalletDigests(){if(!dirtyOwners.size)return;const owners=[...dirtyOwners];dirtyOwners.clear();for(const owner of owners){try{const ids=await redis.smembers(K.wallet(owner));if(!ids.length){await redis.del(K.wdigest(owner));continue;}const pipe=redis.pipeline();ids.forEach(id=>pipe.hget(K.tokens,String(id)));const rows=(await pipe.exec<TokenSnapshot[]>()).filter((t):t is TokenSnapshot=>Boolean(t&&t.owner&&!t.burned&&String(t.owner).toLowerCase()===owner));await redis.set(K.wdigest(owner),rows.sort((a,b)=>a.id-b.id));}catch(e){console.warn(`[digest] ${owner}:`,String((e as any)?.message||e));}}}
 async function allTokens(){return(await redis.hgetall<Record<string,TokenSnapshot>>(K.tokens))||{};}
 async function pruneAboveSupply(supply:number){
  const all=await allTokens();const ids=Object.keys(all).map(Number).filter(id=>Number.isSafeInteger(id)&&id>supply);if(!ids.length)return false;
@@ -110,7 +115,7 @@ async function publishDerivedViews(blockNumber:number,p:ProtocolSnapshot){
  const all=await allTokens();const supply=supplyOf(p);const rows:number[][]=[];for(let id=1;id<=supply;id++){const t=all[String(id)];if(!t){rows.push([-1,0,0,0,0,0,0,0,0,0,0]);continue;}rows.push([t.burned?1:0,t.expiry,t.poisonProtectedUntil,t.finalBiteDeadline,t.deadAt,t.spoilCheckpoint,t.poweredUntil,t.spoilQ4,t.fasting?1:0,t.deathSettled?1:0,t.updatedBlock]);}
  const now=Math.floor(Date.now()/1000);const endgameActive=p.isSettled||Number(p.aliveCount)<=1||(p.currentPhase==='LAST_SUPPER'&&Number(p.aliveCount)<=Number(p.truceThreshold));let live:any[]=[];
  if(endgameActive){const tieId=Number(p.tiebreakCandidate||'0');live=Object.values(all).filter(t=>!t.burned&&(p.isSettled?(!t.deathSettled||t.id===tieId):['ALIVE','HUNGRY','FASTING','FINAL_BITE'].includes(deriveStatus(t,p,now)))).map(t=>{const status=deriveStatus(t,p,now);const voteValid=BigInt(t.voteEpoch||'0')===BigInt(p.truceEpoch||'0')&&!!t.owner&&!!t.voteOwner&&t.owner.toLowerCase()===t.voteOwner.toLowerCase();return{...t,status,voteValid};}).sort((a,b)=>a.id-b.id);}
- const pipe=redis.pipeline();pipe.set(K.stadium,{blockNumber,rows});pipe.set(K.endgame,{blockNumber,active:endgameActive,live,voted:live.filter(t=>t.voteValid).length});await pipe.exec();
+ const rowObj:Record<string,string>={};rows.forEach((r,i)=>{rowObj[String(i+1)]=JSON.stringify(r);});const pipe=redis.pipeline();pipe.hset(K.stadiumRows,rowObj);pipe.set(K.stadiumMeta,{blockNumber,supply:rows.length});pipe.set(K.stadium,{blockNumber,rows});pipe.set(K.endgame,{blockNumber,active:endgameActive,live,voted:live.filter(t=>t.voteValid).length});await pipe.exec();
 }
 
 function idsFromGameTx(input:`0x${string}`):number[]{try{const d=decodeFunctionData({abi:GAME_ENGINE_ABI,data:input});const a=(d.args||[])as unknown as any[];switch(d.functionName){case'feed':case'enterFast':case'powerFridge':case'voteTruce':return[Number(a[0])];case'poison':case'liveDevour':case'consumeCorpse':return[Number(a[0]),Number(a[1])];case'reap':case'settleGame':return(a[0]||[]).map((x:any)=>Number(x));default:return[]}}catch{return[]}}
@@ -206,5 +211,10 @@ async function withLeaderLock(fn:()=>Promise<void>){
   try{await redis.eval("if redis.call('get',KEYS[1]) == ARGV[1] then return redis.call('del',KEYS[1]) else return 0 end",[K.lock],[token]);}catch{}
  }
 }
-async function main(){console.log(`Gluttons production indexer · ${ACTIVE_CHAIN.name} · ${CONTRACTS.gameEngine}`);do{try{const ran=await withLeaderLock(tick);if(!ran)console.log('[indexer] standby: another worker owns the leader lock');}catch(e){console.error('[indexer]',(e as any)?.stack||e);}if(process.env.INDEXER_ONCE==='true')break;await sleep(LOOP+Math.floor(Math.random()*750));}while(true)}
+async function main(){console.log(`Gluttons production indexer · ${ACTIVE_CHAIN.name} · ${CONTRACTS.gameEngine}`);
+ const once=process.env.INDEXER_ONCE==='true';
+ let touchBusy=false;
+ const touchTimer=setInterval(()=>{if(touchBusy)return;touchBusy=true;void (async()=>{try{const initialized=await redis.get(K.initialized);if(!initialized)return;const safe=await rpc('touch head',()=>client.getBlockNumber());await withLeaderLock(async()=>{await processTouches(safe);});}catch(e){console.warn('[touch-lane]',String((e as any)?.message||e));}finally{touchBusy=false}})()},TOUCH);
+ if(once){try{await withLeaderLock(tick);}catch(e){console.error('[indexer]',(e as any)?.stack||e);}clearInterval(touchTimer);console.log('[indexer] single pass complete');return;}
+ do{try{const ran=await withLeaderLock(tick);if(!ran)console.log('[indexer] standby: another worker owns the leader lock');}catch(e){console.error('[indexer]',(e as any)?.stack||e);}await sleep(LOOP+Math.floor(Math.random()*750));}while(true)}
 void main();
