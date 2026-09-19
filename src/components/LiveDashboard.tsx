@@ -1,6 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { useAtomValue } from 'jotai';
+import { usePublicStadium } from '@/hooks/usePublicStadium';
 import { formatEther } from 'viem';
 import { protocolAtom } from '@/state/game';
 import { CONTRACTS, GAME_HOUR_SECONDS, NATIVE_SYMBOL, ROYALTY_TREASURY_ABI } from '@/lib/constants';
@@ -27,6 +28,12 @@ export function LiveDashboard() {
   const minted = Number(p.totalMinted || p.startingPopulation);
   const S = Number(p.startingPopulation || p.totalMinted);
   const alive = Number(p.aliveCount);
+  // LOCK 01: the UI must never label an expired token as a survivor. The stored
+  // aliveCount lags until reap materializes deaths, so the headline is the logical
+  // count derived from the shared snapshot, with the chain value shown as pending.
+  const { list: stadiumList } = usePublicStadium();
+  const derivedAlive = stadiumList.length ? stadiumList.filter(t=>['ALIVE','HUNGRY','FASTING','FINAL_BITE'].includes(t.status)).length : alive;
+  const accountingLag = stadiumList.length>0 && derivedAlive!==alive;
   const meal = Number(p.currentMealSeconds) / gameHourSeconds;
   const bars = Number(p.completedBars);const feeds = Number(p.totalNormalFeeds);const feedsInBar = S > 0 ? feeds % S : 0;
   const potNative = BigInt((p as any).potNative || 0n);
@@ -58,7 +65,7 @@ export function LiveDashboard() {
       
     <div className="state-grid hero-kpis">
       <Metric title={p.isSettled?'VAULT REMAINING':'THE POT'} value={`${potValue} ${NATIVE_SYMBOL}`} sub={p.isSettled?'FINAL SNAPSHOT / CLAIM DETAILS ARE LOCKED IN FINAL TABLE':`${NATIVE_SYMBOL} + WETH IN PRIZE VAULT`} pulse={!p.isSettled} className="pot-priority"/>
-      <Metric title="ALIVE" value={`${alive.toLocaleString()} / ${S || minted}`} bar={pct(alive, S || minted)}/>
+      <Metric title="ALIVE" value={`${derivedAlive.toLocaleString()} / ${S || minted}`} sub={accountingLag?`CHAIN COUNT ${alive.toLocaleString()} — REAP PENDING`:undefined} bar={pct(derivedAlive, S || minted)}/>
       <Metric title="CURRENT MEAL" value={p.isSettled?'CLOSED':`+${meal.toFixed(2)}H`} bar={p.isSettled?undefined:pct(meal, 24)}/>
       <Metric title="METABOLISM" value={`BAR ${bars}`} sub={`${feedsInBar.toLocaleString()} / ${S} FEEDS TO NEXT BAR`} bar={pct(feedsInBar, S)}/>
       <Metric title="MINTED" value={maxSupply ? `${minted.toLocaleString()} / ${maxSupply.toLocaleString()}` : 'SYNCING'} bar={maxSupply?pct(minted, maxSupply):undefined}/>
