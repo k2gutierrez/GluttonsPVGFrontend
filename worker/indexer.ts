@@ -166,7 +166,12 @@ async function processRange(from:bigint,to:bigint){
  const counters=tallyCounters(gameLogs as any[]);
  if(counters.feeds.size){const pipe=redis.pipeline();for(const [w,n] of counters.feeds)pipe.hincrby(K.feeds,w,n);await pipe.exec();}
  if(counters.poisonTxs.length){const senders=await poisonSenders(counters.poisonTxs);if(senders.size){const pipe=redis.pipeline();for(const [w,n] of senders)pipe.hincrby(K.poisons,w,n);await pipe.exec();}}
- const p=await protocol(to),previous=await redis.get<ProtocolSnapshot>(K.protocol);const oldMinted=Number(BigInt(previous?.totalMinted||'0')),newMinted=Number(BigInt(p.totalMinted));for(let id=oldMinted+1;id<=newMinted;id++)impacted.add(id);
+ const p=await protocol(to),previous=await redis.get<ProtocolSnapshot>(K.protocol);
+ // FIX: when the LIVE latch flips, EVERY token's effectiveExpiry changes (s_initialExpiry).
+ // Any row hydrated before the start would otherwise stay unrevealed with a zero clock.
+ const gameJustStarted=Boolean(previous&&Number(previous.gameStart)===0&&Number(p.gameStart)>0);
+ if(gameJustStarted){const s0=supplyOf(p);for(let id=1;id<=s0;id++)impacted.add(id);console.log(`[game-start] re-hydrating ${s0} tokens after the LIVE latch`);}
+ const oldMinted=Number(BigInt(previous?.totalMinted||'0')),newMinted=Number(BigInt(p.totalMinted));for(let id=oldMinted+1;id<=newMinted;id++)impacted.add(id);
  const changedIds=impacted.size?await hydrate([...impacted],Number(to)):[];p.tokenStateBlock=Number((await redis.get<string>(K.tokenStateBlock))||previous?.tokenStateBlock||0);
  const phaseChanged=!previous||previous.phaseCode!==p.phaseCode||previous.isSettled!==p.isSettled;const needsDerived=changedIds.length>0||phaseChanged||!(await redis.get(K.stadium));if(needsDerived)await publishDerivedViews(Number(to),p);
  const claimsChanged=await applyClaimLogs(from,to);if(p.isSettled&&(claimsChanged||!await redis.get(K.settlementBase)||!previous?.isSettled))await refreshSettlement(p,to);
@@ -195,7 +200,7 @@ async function tick(){
  if(last<safe){const gap=safe-last;if(gap>BigInt(MAX_CATCHUP_BLOCKS)){console.warn(`[catchup] ${gap} blocks behind; reconciling current state instead of replaying every block`);await fullRebuild(safe);return;}await processRange(last+1n,safe);last=safe;}
  await processTouches(safe);
  const current=await redis.get<ProtocolSnapshot>(K.protocol);const communityEvery=current&&Number(current.gameStart)>0?300_000:30_000;if(Date.now()-lastCommunities>communityEvery){await refreshCommunities();lastCommunities=Date.now();}
- if(Date.now()-lastReconcile>RECONCILE){const stored=await redis.get<ProtocolSnapshot>(K.protocol);const fresh=await protocol(safe);const drift=!stored||stored.phaseCode!==fresh.phaseCode||stored.isSettled!==fresh.isSettled||Number(stored.aliveCount)!==Number(fresh.aliveCount)||Number(stored.totalMinted)!==Number(fresh.totalMinted)||!(await redis.get(K.stadium));if(drift)await fullRebuild(safe);lastReconcile=Date.now();}
+ if(Date.now()-lastReconcile>RECONCILE){const stored=await redis.get<ProtocolSnapshot>(K.protocol);const fresh=await protocol(safe);const drift=!stored||Number(stored.gameStart)!==Number(fresh.gameStart)||stored.phaseCode!==fresh.phaseCode||stored.isSettled!==fresh.isSettled||Number(stored.aliveCount)!==Number(fresh.aliveCount)||Number(stored.totalMinted)!==Number(fresh.totalMinted)||!(await redis.get(K.stadium));if(drift)await fullRebuild(safe);lastReconcile=Date.now();}
 }
 
 async function withLeaderLock(fn:()=>Promise<void>){
