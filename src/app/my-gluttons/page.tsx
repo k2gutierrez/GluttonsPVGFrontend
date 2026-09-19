@@ -173,5 +173,5 @@ function CorpseCard({corpse,survivors,now,gameHour,bellAt,phase,refreshIds,readS
   </div>;
 }
 
-function GluttonArt({t}:{t:GluttonToken}){const visualState=effectiveVisualState(t);const fallback=visualState===2?ASSETS.fallbackFresh:visualState===3?ASSETS.fallbackRotten:ASSETS.fallbackAlive;const desired=visualState!==t.visualState?fallback:(t.image||fallback);const [src,setSrc]=useState(desired);useEffect(()=>setSrc(desired),[desired]);return <img src={src} onError={()=>setSrc(fallback)} alt={`Glutton #${t.id}`}/>}
+function GluttonArt({t}:{t:GluttonToken}){const visualState=effectiveVisualState(t);const fallback=visualState===2?ASSETS.fallbackFresh:visualState===3?ASSETS.fallbackRotten:ASSETS.fallbackAlive;const desired=t.image||fallback;const [src,setSrc]=useState(desired);useEffect(()=>setSrc(desired),[desired]);return <img src={src} onError={()=>setSrc(fallback)} alt={`Glutton #${t.id}`}/>}
 function Action({title,cost,desc,children}:{title:string;cost:string;desc:string;children:React.ReactNode}){return <div className="action-card"><div><strong>{title}</strong><span>{cost}</span></div><p>{desc}</p>{children}</div>}
