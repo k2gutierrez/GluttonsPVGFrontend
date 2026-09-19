@@ -76,6 +76,9 @@ If only the Next.js UI is deployed without Redis + the indexer, the correct beha
 - Gameplay/mint/claim GameEngine or PrizeVault actions are paused in the official UI when the shared canonical snapshot is stale.
 - `s_gameStart > 0` remains the irreversible LIVE latch for that chain + GameEngine deployment.
 - Local cache is namespaced by chain ID + GameEngine address, so a redeploy cannot inherit another deployment's cached state.
+- Player UI has **no reap action**. `reap()` runs from the accounting keeper; the manual fallback is the
+  `REAP CONSOLE` on `/admin` (PVG Treasury wallets only), backed by
+  `GET /api/read/admin/reap` (rate limited, scans `1..S` onchain and returns only unmaterialized corpses).
 
 ## QA
 
