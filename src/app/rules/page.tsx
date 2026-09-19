@@ -32,13 +32,13 @@ export default function Rules(){
 
     <Panel className="mt-5 p-5 md:p-7"><Kicker>phase machine / what appears and disappears</Kicker><div className="phase-state-grid">
       <Phase name="THE FEAST" trigger="GAME START" open="FEED · FAST · POISON · FRESH · ROTTEN · KEEP FRESH" closed="LIVE DEVOUR · TRUCE"/>
-      <Phase name="THE PLAGUE" trigger="ALIVE ≤50% OR MEAL FIRST REACHES +2H" open="ALL FEAST ACTIONS + LIVE DEVOUR" closed="TRUCE"/>
-      <Phase name="LAST SUPPER WARNING" trigger="ALIVE ≤2.5% OR DAY 120" open="PREVIOUS PHASE RULES CONTINUE FOR 1H" closed="TRUCE UNTIL THE BELL"/>
-      <Phase name="THE LAST SUPPER" trigger="WARNING +1H" open="FRESH · ROTTEN · LIVE DEVOUR · TRUCE WHEN THRESHOLD MET" closed="FEED · FAST · POISON · KEEP FRESH — PERMANENTLY"/>
+      <Phase name="THE PLAGUE" trigger="ALIVE ≤50% OR MEAL FIRST REACHES ≤8H" open="ALL FEAST ACTIONS + LIVE DEVOUR" closed="TRUCE"/>
+      <Phase name="LAST SUPPER WARNING" trigger="ALIVE ≤15% OR DAY 120" open="PREVIOUS PHASE RULES CONTINUE FOR 5H" closed="TRUCE UNTIL THE BELL"/>
+      <Phase name="THE LAST SUPPER" trigger="WARNING +5H" open="POISON · FRESH · ROTTEN · LIVE DEVOUR · TRUCE WHEN THRESHOLD MET" closed="FEED · FAST · KEEP FRESH — PERMANENTLY"/>
       <Phase name="SETTLED" trigger="1 SURVIVOR OR UNANIMOUS TRUCE / TIEBREAK" open="WINNER CLAIM / FINAL TABLE / READ-ONLY INSPECT" closed="ALL GAMEPLAY ACTIONS"/>
     </div></Panel>
 
-    <Panel className="mt-5 p-5 md:p-7"><Kicker>poison / exact lock</Kicker><div className="grid gap-3 md:grid-cols-3"><div className="phase-card"><b>ATTACKER</b><p>Alive · not FASTING · not FINAL BITE · strictly &gt;1H. Success costs exactly −1H. NO attacker cooldown.</p></div><div className="phase-card"><b>NORMAL TARGET</b><p>Alive · unprotected · strictly &gt;1H. Remaining clock becomes max(1H, ceil(remaining/2)). Then Shield UP for 10H.</p></div><div className="phase-card"><b>FASTING TARGET</b><p>Poison does not halve the clock. It triggers FINAL BITE for exactly 1H.</p></div></div></Panel>
+    <Panel className="mt-5 p-5 md:p-7"><Kicker>poison / exact lock</Kicker><div className="grid gap-3 md:grid-cols-3"><div className="phase-card"><b>ATTACKER</b><p>Alive · not FASTING · not FINAL BITE · strictly &gt;1H. Success costs exactly −1H. NO attacker cooldown.</p></div><div className="phase-card"><b>NORMAL TARGET</b><p>Alive · unprotected · strictly &gt;1H. Remaining clock becomes max(1H, ceil(remaining/2)). Then Shield UP for 6H in the Feast, 4H in the Plague and 2H in the Last Supper — a later phase transition never extends it.</p></div><div className="phase-card"><b>FASTING TARGET</b><p>Poison does not halve the clock. It triggers FINAL BITE for exactly 1H.</p></div></div></Panel>
 
     <Panel className="mt-5 p-5 md:p-7"><Kicker>the truce / final table</Kicker><div className="grid gap-3 md:grid-cols-4"><div className="phase-card"><b>UNLOCK</b><p>LAST SUPPER + Alive ≤ {truce}.</p></div><div className="phase-card"><b>VOTE</b><p>Every surviving NFT records RETIRE. One vote per NFT, tied to current owner.</p></div><div className="phase-card"><b>RESET</b><p>Any death or Devour advances the epoch. A transfer invalidates that NFT’s previous owner vote.</p></div><div className="phase-card"><b>SETTLE</b><p>N/N votes closes immediately and splits the Pot by surviving shares. Clocks never pause while voting.</p></div></div></Panel>
 

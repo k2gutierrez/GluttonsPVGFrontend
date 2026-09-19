@@ -37,7 +37,7 @@ export function LiveDashboard() {
   const lsThreshold = Number(p.lastSupperThreshold || 0n) || Math.ceil(S * .025);
   const truceThreshold = Number(p.truceThreshold || 0n) || Math.max(2, Math.ceil(S * .01));
   const next = phase === 'FEAST'
-    ? `PLAGUE ≤ ${Math.ceil(S * .5)} ALIVE OR +2H MEAL`
+    ? `PLAGUE ≤ ${Math.ceil(S * .5)} ALIVE OR MEAL ≤8H`
     : phase === 'PLAGUE'
       ? `LAST SUPPER WARNING ≤ ${lsThreshold} ALIVE OR DAY 120`
       : phase === 'LS_WARNING'
